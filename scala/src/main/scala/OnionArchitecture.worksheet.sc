@@ -15,7 +15,7 @@ object Main extends IOApp.Simple:
       FileManager.make[IO](conf.foo).use { fileMgr =>
         val ns = NumberService.make[IO](fileMgr)
         val res = NumberAdder(ns).addThemUp
-        IO(println("$res"))
+        res.flatMap(res => IO(println(s"$res")))
       }
     }
 
@@ -28,8 +28,8 @@ final case class Configs(
 object Configs:
   def read[F[_]: Sync]: F[Configs] =
     (
-      Sync[F].delay(sys.env("PWD")),
-      Sync[F].delay(sys.env("DISPLAY").toInt),
+      Sync[F].delay(sys.env("FILE")),
+      Sync[F].delay(sys.env("DO_NOT_TRACK").toInt),
       Sync[F].delay(sys.env("HOME"))
     ).mapN(Configs.apply)
 
@@ -53,7 +53,10 @@ object NumberService:
       def getNumbers: F[List[Int]] =
         Sync[F].blocking {
           file.getLines.toList
-            .collect(line => line.toInt)
+            .collect {
+              case line if line.toIntOption.isDefined =>
+                line.toInt
+            }
         }
 
 // Inner (business logic, preferably pure) layer
@@ -65,4 +68,4 @@ case class NumberAdder[F[_]: Functor](
 
   def addThemUp: F[Int] = numbers.getNumbers.map(addNums)
 
-// Main.run.unsafeRunSync()
+Main.run.unsafeRunSync()
