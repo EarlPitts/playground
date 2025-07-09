@@ -33,31 +33,39 @@ object Configs:
       Sync[F].delay(sys.env("HOME"))
     ).mapN(Configs.apply)
 
+abstract class FileManager[F[_]](val file: BufferedSource):
+  def getLines: F[List[String]]
+
 object FileManager:
   def make[F[_]: Sync](
       fileName: String
-  ): Resource[F, BufferedSource] =
+  ): Resource[F, FileManager[F]] =
     Resource.make(
-      Sync[F].blocking(Source.fromFile(fileName))
-    )(file => Sync[F].blocking(file.close))
+      Sync[F]
+        .blocking(Source.fromFile(fileName))
+        .map {
+          new FileManager[F](_):
+            def getLines: F[List[String]] =
+              Sync[F].blocking(file.getLines.toList)
+        }
+    )(fm => Sync[F].blocking(fm.file.close))
 
 // Middle (service, algebra) layer
 sealed trait NumberService[F[_]]:
   def getNumbers: F[List[Int]]
 
 object NumberService:
-  def make[F[_]: Sync](
-      file: BufferedSource
+  def make[F[_]: Functor](
+      file: FileManager[F]
   ): NumberService[F] =
     new NumberService[F]:
       def getNumbers: F[List[Int]] =
-        Sync[F].blocking {
-          file.getLines.toList
-            .collect {
-              case line if line.toIntOption.isDefined =>
-                line.toInt
-            }
-        }
+        file.getLines.map(
+          _.collect {
+            case line if line.toIntOption.isDefined =>
+              line.toInt
+          }
+        )
 
 // Inner (business logic, preferably pure) layer
 case class NumberAdder[F[_]: Functor](
@@ -68,4 +76,4 @@ case class NumberAdder[F[_]: Functor](
 
   def addThemUp: F[Int] = numbers.getNumbers.map(addNums)
 
-Main.run.unsafeRunSync()
+// Main.run.unsafeRunSync()
