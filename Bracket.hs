@@ -1,7 +1,10 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.Managed
 import Data.Foldable
+import Database.Redis as R
 import System.IO hiding (withFile)
 
 -- Managing resources with bracket
@@ -37,3 +40,15 @@ p'' = do
   h2 <- res2
   liftIO $ readLines h1 >>= traverse_ putStrLn
   liftIO $ readLines h2 >>= traverse_ putStrLn
+
+redisResource :: Managed R.Connection
+redisResource =
+  let acquire = R.checkedConnect R.defaultConnectInfo
+      release = R.disconnect
+   in managed $ bracket acquire release
+
+p''' = runManaged $ do
+  conn <- redisResource
+  liftIO $ runRedis conn $ do
+    set "hello" "hello"
+  return ()
