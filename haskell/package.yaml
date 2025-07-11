@@ -1,0 +1,12 @@
+name: haskell
+
+dependencies:
+  - base
+  - text
+  - bytestring
+  - hedis
+  - managed
+  - exceptions
+
+library:
+  source-dirs: src

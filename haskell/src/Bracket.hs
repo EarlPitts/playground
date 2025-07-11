@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+module Bracket where
+
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.Managed
@@ -8,7 +10,7 @@ import Database.Redis as R
 import System.IO hiding (withFile)
 
 -- Managing resources with bracket
-withFile = bracket (openFile "Bracket.hs" ReadMode) hClose
+withFile = bracket (openFile "src/Bracket.hs" ReadMode) hClose
 
 p = withFile readLines >>= traverse_ putStrLn
 
