@@ -8,7 +8,10 @@ import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.Managed
 import qualified Data.ByteString.Char8 as BS
+import Data.Functor.Identity
 import qualified Database.Redis as R
+import qualified Data.Map as M
+import Control.Concurrent
 
 -- Infrastructure layer
 redisResource :: Managed R.Connection
@@ -24,9 +27,9 @@ main f n = runManaged $ do
   liftIO $ print res
 
 -- Service layer
-data KVStore k v = KVStore
-  { put :: k -> v -> IO (),
-    get :: k -> IO (Maybe v)
+data KVStore k v m = KVStore
+  { put :: k -> v -> m (),
+    get :: k -> m (Maybe v)
   }
 
 class (Read a, Show a) => Serializable a where
@@ -37,7 +40,7 @@ instance (Read a, Show a) => Serializable a where
   toBS = BS.pack . show
   fromBS = read . BS.unpack
 
-mkRedis :: (Serializable k, Serializable v) => R.Connection -> KVStore k v
+mkRedis :: (Serializable k, Serializable v) => R.Connection -> KVStore k v IO
 mkRedis c =
   KVStore
     { put = put' c,
@@ -57,7 +60,7 @@ get' c k = R.runRedis c $ do
     Right resp -> pure $ fromBS <$> resp
 
 -- Logic layer
-evaluator :: KVStore Int Integer -> (Int -> Integer) -> Int -> IO Integer
+evaluator :: (Monad m) => KVStore Int Integer m -> (Int -> Integer) -> Int -> m Integer
 evaluator store f n = do
   res <- get store n
   case res of
@@ -68,3 +71,34 @@ fibo :: Int -> Integer
 fibo n = fib !! n
   where
     fib = 0 : 1 : zipWith (+) fib (tail fib)
+
+stubKV :: KVStore Int Integer Identity
+stubKV =
+  KVStore
+    { get = \n -> pure (Just $ toInteger n),
+      put = \_ _ -> pure ()
+    }
+
+type InMemStore = MVar (M.Map Int Integer)
+
+fakeKV :: InMemStore -> KVStore Int Integer IO
+fakeKV mvar =
+  KVStore
+    { get = fakeGet mvar,
+      put = fakePut mvar
+    }
+
+fakeGet :: InMemStore -> Int -> IO (Maybe Integer)
+fakeGet mvar n = do
+  map <- liftIO $ readMVar mvar
+  return $ M.lookup n map
+
+fakePut :: InMemStore -> Int -> Integer -> IO ()
+fakePut mvar n m = do
+  modifyMVar_ mvar (pure . M.insert n m)
+
+testMain f n = do
+  mvar <- newMVar M.empty
+  let store = fakeKV mvar
+  evaluator store f n
+  evaluator store f n
