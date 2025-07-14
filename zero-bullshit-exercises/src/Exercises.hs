@@ -42,6 +42,16 @@ onOffHandler = S.statefulHandler S.POST "/onoff-switch" handle
   where
     handle s _ = (flipSwitch s, S.stringResponse (show (flipSwitch s)))
 
+increaseCounterHandler :: S.StatefulHandler Int
+increaseCounterHandler = S.statefulHandler S.POST "/increase" handle
+  where
+    handle s _ = (succ s, S.stringResponse (show (succ s)))
+
+getCounterHandler :: S.StatefulHandler Int
+getCounterHandler = S.statefulHandler S.GET "/current-count" handle
+  where
+    handle s _ = (s, S.stringResponse (show s))
+
 -- Server
 serve :: IO ()
 serve =
@@ -50,5 +60,6 @@ serve =
       S.simpleHandler S.POST "/echo" echoHandler,
       S.simpleHandler S.POST "/case" caseHandler,
       S.simpleHandler S.POST "/string-manipulation" manipulateHandler,
-      S.handlersWithState (Switch False) [onOffHandler]
+      S.handlersWithState (Switch False) [onOffHandler],
+      S.handlersWithState 0 [increaseCounterHandler, getCounterHandler]
     ]
