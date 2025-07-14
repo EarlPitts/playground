@@ -28,15 +28,19 @@ caseHandler = S.stringResponse . spell . read . S.requestBody
 manipulateHandler :: S.Request -> S.Response
 manipulateHandler = S.stringResponse . conservatizer . S.requestBody
 
--- data StatefulHandler state
---   = StatefulHandler
---       Method
---       String
---       (state -> Request -> (state, Response)) -- TODO decide if best to keep `statefulHandler` or just stick with the type.
+newtype Switch = Switch Bool
 
-onOffHandler :: S.StatefulHandler Bool
+instance Show Switch where
+  show (Switch False) = "Off"
+  show (Switch True) = "On"
+
+flipSwitch :: Switch -> Switch
+flipSwitch (Switch b) = Switch (not b)
+
+onOffHandler :: S.StatefulHandler Switch
 onOffHandler = S.statefulHandler S.POST "/onoff-switch" handle
-  where handle s _ = (not s, S.stringResponse (show s))
+  where
+    handle s _ = (flipSwitch s, S.stringResponse (show (flipSwitch s)))
 
 -- Server
 serve :: IO ()
@@ -46,4 +50,5 @@ serve =
       S.simpleHandler S.POST "/echo" echoHandler,
       S.simpleHandler S.POST "/case" caseHandler,
       S.simpleHandler S.POST "/string-manipulation" manipulateHandler,
+      S.handlersWithState (Switch False) [onOffHandler]
     ]

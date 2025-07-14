@@ -339,7 +339,7 @@ handlersWithState initialState handlers
         pure $ StatelessHandler method path $ do
             req <- createRequest
 
-            res <- Scotty.liftAndCatchIO $
+            res <- Scotty.liftIO $
               STM.atomically $ do
                 state <- TVar.readTVar stateVar
                 let (newState, res) = toResponse state req
