@@ -1,4 +1,4 @@
-module FoldsLaziness where
+module FoldsCompared where
 
 -- https://wiki.haskell.org/index.php?title=Foldr_Foldl_Foldl%27
 
