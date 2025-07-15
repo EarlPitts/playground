@@ -17,6 +17,7 @@ dependencies:
 - random
 - stm
 - text
+- extra
 
 ghc-options:
 - -Wall

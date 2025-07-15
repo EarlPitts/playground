@@ -2,7 +2,11 @@ module Exercises where
 
 -- https://github.com/alpacaaa/zero-bs-haskell
 
+import qualified Data.Aeson as Aeson
+import Data.Either
+import Data.List.Extra (snoc)
 import qualified Data.Text as T
+import GHC.Generics (Generic)
 import qualified Server as S
 
 spell :: Int -> String
@@ -52,6 +56,28 @@ getCounterHandler = S.statefulHandler S.GET "/current-count" handle
   where
     handle s _ = (s, S.stringResponse (show s))
 
+data Item = Item
+  { model :: String,
+    quantity :: Int
+  }
+  deriving (Eq, Show, Generic, Aeson.ToJSON, Aeson.FromJSON)
+
+type Cart = [Item]
+
+addToCartHandler :: S.StatefulHandler Cart
+addToCartHandler = S.statefulHandler S.POST "/cart" handle
+  where
+    handle s req =
+      let item = S.decodeJson $ S.requestBody req
+       in case item of
+            Left err -> (s, S.stringResponse err)
+            Right i -> (snoc s i, S.jsonResponse (snoc s i))
+
+getCartHandler :: S.StatefulHandler Cart
+getCartHandler = S.statefulHandler S.GET "/cart" handle
+  where
+    handle cart _ = (cart, S.jsonResponse cart)
+
 -- Server
 serve :: IO ()
 serve =
@@ -61,5 +87,6 @@ serve =
       S.simpleHandler S.POST "/case" caseHandler,
       S.simpleHandler S.POST "/string-manipulation" manipulateHandler,
       S.handlersWithState (Switch False) [onOffHandler],
-      S.handlersWithState 0 [increaseCounterHandler, getCounterHandler]
+      S.handlersWithState 0 [increaseCounterHandler, getCounterHandler],
+      S.handlersWithState (mempty :: Cart) [getCartHandler, addToCartHandler]
     ]
