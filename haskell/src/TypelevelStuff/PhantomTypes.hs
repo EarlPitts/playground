@@ -1,3 +1,5 @@
+module TypelevelStuff.PhantomTypes where
+
 data Validated
 data NotValidated
 newtype Email a = Email String deriving Show -- This has to be opaque

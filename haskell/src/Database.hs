@@ -1,3 +1,5 @@
+module Database where
+
 {-# LANGUAGE OverloadedStrings #-}
 
 import Control.Applicative

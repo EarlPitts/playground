@@ -1,3 +1,5 @@
+module CellularAutomata where
+
 data Cell = Alive | Dead deriving (Eq)
 type Grid = [[Cell]]
 

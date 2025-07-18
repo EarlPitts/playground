@@ -1,3 +1,5 @@
+module Algebra.BoolMonoids where
+
 import Control.Applicative
 
 -- We have to make wrapper types, as there should always

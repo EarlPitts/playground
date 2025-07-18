@@ -1,11 +1,15 @@
 -- https://lexi-lambda.github.io/blog/2017/06/29/unit-testing-effectful-haskell-with-monad-mock/
 
+module Mocking.Fake where
+
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 import Control.Arrow
 import Control.Monad.Identity
 import Control.Monad.State
 import Data.Function
 import Data.List
-import UnitTesting
+import Mocking.UnitTesting
 
 newtype FakeFileSystemT m a = FakeFileSystemT (StateT [(FilePath, String)] m a)
   deriving (Functor, Applicative, Monad)

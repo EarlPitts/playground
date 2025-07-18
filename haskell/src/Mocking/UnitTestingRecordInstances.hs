@@ -1,3 +1,5 @@
+module Mocking.UnitTestingRecordInstances where
+
 import Control.Monad.Identity
 import Control.Monad.Reader
 import Control.Monad.Writer

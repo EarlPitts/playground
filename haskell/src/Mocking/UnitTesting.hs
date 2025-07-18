@@ -1,6 +1,6 @@
 -- https://lexi-lambda.github.io/blog/2016/10/03/using-types-to-unit-test-in-haskell/
 
-module UnitTesting where
+module Mocking.UnitTesting where
 
 import Control.Monad.Identity
 import Control.Monad.Writer
@@ -15,8 +15,8 @@ instance MonadFS IO where
 
 reverseFile :: (MonadFS m) => FilePath -> m ()
 reverseFile path = do
-  contents <- UnitTesting.readFile path
-  UnitTesting.writeFile path (reverse contents)
+  contents <- Mocking.UnitTesting.readFile path
+  Mocking.UnitTesting.writeFile path (reverse contents)
 
 reverseIO :: FilePath -> IO ()
 reverseIO = reverseFile

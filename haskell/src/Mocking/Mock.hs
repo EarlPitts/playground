@@ -1,3 +1,5 @@
+module Mocking.Mock where
+
 import Adapter.PG.Main
 import ClassyPrelude
 import Data.Pool (Pool (..), createPool, withResource)

@@ -1,3 +1,5 @@
+module TypelevelStuff.OpaqueTypes where
+
 -- Just don't export this
 newtype NonZeroInt = NonZeroInt Int deriving Show
 

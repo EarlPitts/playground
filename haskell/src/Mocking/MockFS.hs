@@ -1,5 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 
+module Mocking.MockFS where
+
 import qualified Prelude
 import Prelude hiding(readFile)
 import Control.Monad.State
