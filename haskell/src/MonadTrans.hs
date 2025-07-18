@@ -1,3 +1,5 @@
+module MonadTrans where
+
 import Control.Monad.State
 import Control.Monad.Reader
 import Control.Monad.Writer

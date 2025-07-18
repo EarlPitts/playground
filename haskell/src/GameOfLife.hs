@@ -1,3 +1,5 @@
+module GameOfLife where
+
 import Data.List
 import Control.Applicative
 import Control.Monad

@@ -1,7 +1,9 @@
+module Mocking.UnitTestingRecordInstances where
+
 import Control.Monad.Identity
 import Control.Monad.Reader
 import Control.Monad.Writer
-import UnitTesting
+import Mocking.UnitTesting
 import Prelude hiding (readFile, writeFile)
 
 data MonadFSInst m = MonadFSInst

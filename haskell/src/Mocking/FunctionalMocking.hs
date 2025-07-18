@@ -1,5 +1,7 @@
 -- https://youtu.be/kHEriteFMb0?si=uzOzW5mfq_j-zorg
 
+module Mocking.FunctionalMocking where
+
 {-# LANGUAGE DeriveAnyClass #-}
 
 import Control.Monad

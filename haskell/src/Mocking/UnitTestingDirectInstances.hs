@@ -1,4 +1,6 @@
-import UnitTesting
+module Mocking.UnitTestingDirectInstances where
+
+import Mocking.UnitTesting
 import Control.Monad.Writer
 import Control.Monad.Identity
 import Control.Monad

@@ -1,3 +1,5 @@
+module Algorithms.QuickSort where
+
 quickSort :: [Int] -> [Int]
 quickSort [] = []
 quickSort (n:ns) = lower ++ [n] ++ upper

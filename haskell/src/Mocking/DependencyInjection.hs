@@ -1,7 +1,10 @@
+module Mocking.DependencyInjection where
+
+{-# LANGUAGE RankNTypes #-}
+
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import System.IO
 import Control.Monad.Reader
-
 
 type Logger m = forall a. (Show a) => a -> m ()
 
