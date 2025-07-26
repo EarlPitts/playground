@@ -1,31 +1,67 @@
--- https://javran.github.io/posts/2014-08-22-comonad-zipper-and-conways-game-of-life.html
-
 module DataStructures.Zipper where
 
+import Control.Comonad
 import Control.Monad
 import Data.Char
 import Data.Foldable
+import Data.List
 
-step0 = "*  >  *   *  <  **<"
+data Zipper a = Zipper [a] a [a] deriving (Functor)
 
-waveRule :: Char -> Char -> Char -> Char
-waveRule l _ r
-  | fromL && fromR = 'X'
-  | fromL = '>'
-  | fromR = '<'
-  | otherwise = ' '
-  where
-    fromL = l `elem` "*X>"
-    fromR = r `elem` "*X<"
+fromList :: [a] -> Zipper a
+fromList (x : xs) = Zipper [] x xs
+fromList [] = error "empty list"
 
-triplets :: [a] -> [[a]]
-triplets cs@(l : m : r : _) = [l, m, r] : triplets (tail cs)
-triplets _ = []
+fromListInd :: [a] -> Int -> Zipper a
+fromListInd l i = Zipper (reverse $ take i l) (l !! i) (drop (i + 1) l)
 
-step :: [Char] -> [Char]
-step cs = (\[l,m,r] -> waveRule l m r) <$> triplets (" " <> cs <> " ")
+moveLeft :: Zipper a -> Zipper a
+moveLeft (Zipper (l : ls) m r) = Zipper ls l (m : r)
+moveLeft z@(Zipper [] _ _) = z
 
-run :: String -> [String]
-run = takeWhile (not . all isSpace) . iterate step
+moveRight :: Zipper a -> Zipper a
+moveRight (Zipper l m (r : rs)) = Zipper (m : l) r rs
+moveRight z@(Zipper _ _ []) = z
 
-main = traverse_ putStrLn (run step0)
+safeLeft :: Zipper a -> Maybe (Zipper a)
+safeLeft (Zipper (l : ls) m r) = Just $ Zipper ls l (m : r)
+safeLeft (Zipper [] _ _) = Nothing
+
+safeRight :: Zipper a -> Maybe (Zipper a)
+safeRight (Zipper l m (r : rs)) = Just $ Zipper (m : l) r rs
+safeRight (Zipper _ _ []) = Nothing
+
+focus :: Zipper a -> a
+focus (Zipper _ m _) = m
+
+lefts :: Zipper a -> [Zipper a]
+lefts z@(Zipper l _ _) =
+  fst <$> zip (tail $ iterate moveLeft z) l
+
+rights :: Zipper a -> [Zipper a]
+rights z@(Zipper _ _ r) =
+  fst <$> zip (tail $ iterate moveRight z) r
+
+update :: (a -> a) -> Zipper a -> Zipper a
+update f (Zipper l m r) = Zipper l (f m) r
+
+toList :: Zipper a -> [a]
+toList (Zipper l m r) = reverse l <> [m] <> r
+
+instance (Show a) => Show (Zipper a) where
+  show (Zipper l m r) =
+    "("
+      <> intercalate "," (show <$> reverse l)
+      <> " ["
+      <> show m
+      <> "] "
+      <> intercalate "," (show <$> r)
+      <> ")"
+
+-- extract   <-> pure
+-- duplicate <-> join
+-- extend    <-> bind
+
+instance Comonad Zipper where
+  extract = focus
+  duplicate z = Zipper (lefts z) z (rights z)

@@ -17,6 +17,9 @@ dependencies:
   - async
   - tasty
   - stm
+  - comonad
 
 library:
   source-dirs: src
+  default-extensions:
+    - DeriveFunctor
