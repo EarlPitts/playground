@@ -5,9 +5,10 @@ import Control.Monad
 import Data.Char
 import Data.Foldable
 import Data.List
-import DataStructures.Zipper as Z
+import Data.Maybe
+import qualified DataStructures.Zipper as Z
 
-newtype Grid a = Grid {runGrid :: Zipper (Zipper a)}
+newtype Grid a = Grid {runGrid :: Z.Zipper (Z.Zipper a)}
   deriving (Functor)
 
 moveUp :: Grid a -> Grid a
@@ -44,18 +45,34 @@ update f (Grid z) = Grid $ Z.update (Z.update f) z
 toLists :: Grid a -> [[a]]
 toLists (Grid z) = Z.toList $ Z.toList <$> z
 
+fromLists :: [[a]] -> Grid a
+fromLists = Grid . Z.fromList . fmap Z.fromList
+
+focus :: Grid a -> a
+focus = Z.focus . Z.focus . runGrid
+
+adjacent :: Grid a -> [Grid a]
+adjacent g = mapMaybe ($ g) [up, down, left, right, upRight, upLeft, downRight, downLeft]
+  where
+    up = safeUp
+    down = safeDown
+    left = safeLeft
+    right = safeRight
+    upRight = safeRight >=> safeUp
+    upLeft = safeLeft >=> safeUp
+    downRight = safeRight >=> safeDown
+    downLeft = safeLeft >=> safeDown
+
 instance (Show a) => Show (Grid a) where
   -- show (Grid z) = intercalate "\n" (Z.toList $ show <$> z)
   show (Grid z) = intercalate "\n" $ case show <$> z of
-    Zipper l m r -> reverse l <> [m <> " <"] <> r
-
-grid = Grid $ duplicate (fromListInd [0 .. 5] 2)
+    Z.Zipper l m r -> reverse l <> [m <> " <"] <> r
 
 instance Comonad Grid where
-  extract (Grid z) = focus (focus z)
+  extract = focus
   duplicate (Grid z) = Grid <$> Grid layers
     where
-      layer u = Zipper (lefts u) u (rights u)
-      lefts z@(Zipper l _ _) = fst <$> zip (tail $ iterate (fmap Z.moveLeft) z) l
-      rights z@(Zipper _ _ r) = fst <$> zip (tail $ iterate (fmap Z.moveRight) z) r
+      layer u = Z.Zipper (lefts u) u (rights u)
+      lefts z@(Z.Zipper l _ _) = fst <$> zip (tail $ iterate (fmap Z.moveLeft) z) l
+      rights z@(Z.Zipper _ _ r) = fst <$> zip (tail $ iterate (fmap Z.moveRight) z) r
       layers = layer (layer z)
