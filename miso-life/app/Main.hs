@@ -33,6 +33,7 @@ value = lens _value $ \m v -> m {_value = v}
 -----------------------------------------------------------------------------
 data Action
   = Step
+  | Run
   | Clicked Coord
   deriving (Show)
 
@@ -59,6 +60,9 @@ updateModel :: Action -> Transition Model Action
 updateModel Step = do
   value %= step
   io_ $ consoleLog "step"
+updateModel Run = do
+  value %= step
+  io $ pure Run
 updateModel (Clicked coord@(Coord r c)) = do
   value %= toggleCell coord
   io_ $ consoleLog ("changed row " <> (ms r) <> " column " <> (ms c))
@@ -72,6 +76,9 @@ viewModel (Model grid) =
     [ div_
         []
         [button_ [onPointerDown (const Step)] [text "Step"]],
+      div_
+        []
+        [button_ [onPointerDown (const Run)] [text "Run"]],
       div_
         [class_ "container"]
         (uncurry cellView <$> makeCells grid)
