@@ -33,8 +33,8 @@ value = lens _value $ \m v -> m {_value = v}
 -----------------------------------------------------------------------------
 data Action
   = Step
-  | Clicked Int Int
-  deriving (Show, Eq)
+  | Clicked Coord
+  deriving (Show)
 
 -----------------------------------------------------------------------------
 #ifdef WASM
@@ -47,7 +47,7 @@ main = run $ startComponent app
 -----------------------------------------------------------------------------
 app :: App Model Action
 app =
-  (component (Model $ glider size) updateModel viewModel)
+  (component (Model $ initBoard size) updateModel viewModel)
     { events = pointerEvents,
       styles = [Sheet (sheet size)]
     }
@@ -58,11 +58,10 @@ app =
 updateModel :: Action -> Transition Model Action
 updateModel Step = do
   value %= step
-  io_ $ consoleLog "changed"
-updateModel (Clicked r c) = do
-  value %= (\g -> maybe g id (Grid.update' r c (\state -> if state == Dead then Alive else Dead) g))
+  io_ $ consoleLog "step"
+updateModel (Clicked coord@(Coord r c)) = do
+  value %= toggleCell coord
   io_ $ consoleLog ("changed row " <> (ms r) <> " column " <> (ms c))
-
 
 -----------------------------------------------------------------------------
 
@@ -75,12 +74,12 @@ viewModel (Model grid) =
         [button_ [onPointerDown (const Step)] [text "Step"]],
       div_
         [class_ "container"]
-        [cellView i j c | (i, r) <- Prelude.zip [0..] (toLists grid), (j, c) <- Prelude.zip [0..] r]
+        (uncurry cellView <$> makeCells grid)
     ]
 
-cellView :: Int -> Int -> State -> View Model Action
-cellView r c Alive = div_ [class_ "grid-cell-on", onPointerDown (const $ Clicked r c)] []
-cellView r c Dead = div_ [class_ "grid-cell-off", onPointerDown (const $ Clicked r c)] []
+cellView :: Coord -> State -> View Model Action
+cellView c Alive = div_ [class_ "grid-cell-on", onPointerDown (const $ Clicked c)] []
+cellView c Dead = div_ [class_ "grid-cell-off", onPointerDown (const $ Clicked c)] []
 
 sheet :: Int -> StyleSheet
 sheet size =
