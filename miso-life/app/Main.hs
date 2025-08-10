@@ -33,6 +33,7 @@ value = lens _value $ \m v -> m {_value = v}
 -----------------------------------------------------------------------------
 data Action
   = Step
+  | Clicked Int Int
   deriving (Show, Eq)
 
 -----------------------------------------------------------------------------
@@ -58,6 +59,10 @@ updateModel :: Action -> Transition Model Action
 updateModel Step = do
   value %= step
   io_ $ consoleLog "changed"
+updateModel (Clicked r c) = do
+  value %= (\g -> maybe g id (Grid.update' r c (\state -> if state == Dead then Alive else Dead) g))
+  io_ $ consoleLog ("changed row " <> (ms r) <> " column " <> (ms c))
+
 
 -----------------------------------------------------------------------------
 
@@ -70,12 +75,12 @@ viewModel (Model grid) =
         [button_ [onPointerDown (const Step)] [text "Step"]],
       div_
         [class_ "container"]
-        [cellView c | r <- toLists grid, c <- r]
+        [cellView i j c | (i, r) <- Prelude.zip [0..] (toLists grid), (j, c) <- Prelude.zip [0..] r]
     ]
 
-cellView :: State -> View Model Action
-cellView Alive = div_ [class_ "grid-cell-on"] []
-cellView Dead = div_ [class_ "grid-cell-off"] []
+cellView :: Int -> Int -> State -> View Model Action
+cellView r c Alive = div_ [class_ "grid-cell-on", onPointerDown (const $ Clicked r c)] []
+cellView r c Dead = div_ [class_ "grid-cell-off", onPointerDown (const $ Clicked r c)] []
 
 sheet :: Int -> StyleSheet
 sheet size =

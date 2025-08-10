@@ -1,2 +1,2 @@
 start:
-	ghcid -W -c 'cabal repl app' -T=Main.main
+	ghcid -W -c 'cabal --enable-multi-repl repl app life' -T=Main.main

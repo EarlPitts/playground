@@ -6,6 +6,9 @@ import Data.List
 import Data.Maybe
 import qualified Zipper as Z
 
+type Row = Int
+type Col = Int
+
 newtype Grid a = Grid {runGrid :: Z.Zipper (Z.Zipper a)}
   deriving (Eq, Functor)
 
@@ -40,8 +43,35 @@ safeRight (Grid z) = case Z.safeRight $ Z.focus z of
 update :: (a -> a) -> Grid a -> Grid a
 update f (Grid z) = Grid $ Z.update (Z.update f) z
 
+update' :: Row -> Col -> (a -> a) -> Grid a -> Maybe (Grid a)
+update' r c f g = do
+  row <- safeDownN r g
+  col <- safeRightN c row
+  modified <- Just $ update f col
+  newCol <- safeLeftN c modified
+  safeUpN r newCol
+
 set :: a -> Grid a -> Grid a
 set a g = update (const a) g
+
+safeDownN :: Int -> Grid a -> Maybe (Grid a)
+safeDownN 0 g = Just g
+safeDownN n g = safeDown g >>= safeDownN (n - 1)
+
+safeUpN :: Int -> Grid a -> Maybe (Grid a)
+safeUpN 0 g = Just g
+safeUpN n g = safeUp g >>= safeUpN (n - 1)
+
+safeLeftN :: Int -> Grid a -> Maybe (Grid a)
+safeLeftN 0 g = Just g
+safeLeftN n g = safeLeft g >>= safeLeftN (n - 1)
+
+safeRightN :: Int -> Grid a -> Maybe (Grid a)
+safeRightN 0 g = Just g
+safeRightN n g = safeRight g >>= safeRightN (n - 1)
+
+point :: Int -> Int -> Grid a -> Maybe (Grid a)
+point r c g = safeDownN r g >>= safeRightN c
 
 toLists :: Grid a -> [[a]]
 toLists (Grid z) = Z.toList $ Z.toList <$> z
