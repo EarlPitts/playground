@@ -9,6 +9,8 @@ import qualified Zipper as Z
 type Row = Int
 type Col = Int
 
+data Position = Position Row Col deriving (Show, Eq)
+
 newtype Grid a = Grid {runGrid :: Z.Zipper (Z.Zipper a)}
   deriving (Eq, Functor)
 
@@ -70,8 +72,13 @@ safeRightN :: Int -> Grid a -> Maybe (Grid a)
 safeRightN 0 g = Just g
 safeRightN n g = safeRight g >>= safeRightN (n - 1)
 
-point :: Int -> Int -> Grid a -> Maybe (Grid a)
-point r c g = safeDownN r g >>= safeRightN c
+-- point :: Position -> Grid a -> Maybe (Grid a)
+-- point (Position row col) (Grid (Z.Zipper l m@(Z.Zipper l' m' r') r)) =
+--   safeDownN r g >>= safeRightN c
+
+position :: Grid a -> Position
+position (Grid (Z.Zipper l (Z.Zipper l' _ _) _)) =
+  Position (length l) (length l')
 
 toLists :: Grid a -> [[a]]
 toLists (Grid z) = Z.toList $ Z.toList <$> z

@@ -1,0 +1,33 @@
+cabal-version:      3.0
+name:               miso-experiments
+version:            0.1.0.0
+build-type:         Simple
+
+common warnings
+  ghc-options:
+    -funbox-strict-fields -O2 -ferror-spans -fspecialise-aggressively -Wall
+
+library
+  import:
+    warnings
+  exposed-modules:
+    Zipper, Grid, Life, Snake
+  build-depends:
+    base < 5, comonad, miso
+  hs-source-dirs:
+    src
+  default-extensions: DeriveFunctor
+  default-language:
+    Haskell2010
+
+executable app
+  import:
+    warnings
+  main-is:
+    Main.hs
+  build-depends:
+    base < 5, miso, miso-experiments
+  hs-source-dirs:
+    app
+  default-language:
+    Haskell2010
