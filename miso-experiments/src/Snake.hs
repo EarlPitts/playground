@@ -5,119 +5,120 @@ module Snake where
 import Grid
 import Data.Maybe
 import Control.Comonad
-import Miso hiding (media_, focus, update, set)
+import Miso hiding (media_, focus, update, set, Off)
 import Miso.Lens hiding (set)
 import Miso.String (ms, toMisoString, ToMisoString)
 import Miso.Style hiding (ms, filter, position)
 import Debug.Trace
+import Control.Monad
 
-type Board = Grid Tile
+type Board = [[Position]]
 
-data Dir = U | D| L | R deriving (Show, Eq)
-data Tile = Head Dir Dir | Tail Dir | Empty deriving (Show, Eq)
+data Dir = U | D | L | R deriving (Show, Eq)
 
-step :: Grid Tile -> Grid Tile
-step = undefined
+data Snake = Snake Dir [Position] deriving (Show, Eq)
+-- data Fruits = Fruits [Position]
+data Tile = On | Off
 
-shrink :: Grid Tile -> Grid Tile
-shrink g = case focus g of
-  (Tail U) -> case focus <$> safeUp g of
-    Nothing -> set Empty g
-    Just Empty -> set Empty g
-    Just _ -> shrink (moveUp g)
-  (Tail D) -> case focus <$> safeDown g of
-    Nothing -> set Empty g
-    Just Empty -> set Empty g
-    Just _ -> shrink (moveDown g)
-  (Tail R) -> case focus <$> safeRight g of
-    Nothing -> set Empty g
-    Just Empty -> set Empty g
-    Just _ -> shrink (moveRight g)
-  (Tail L) -> case focus <$> safeLeft g of
-    Nothing -> set Empty g
-    Just Empty -> set Empty g
-    Just _ -> shrink (moveLeft g)
-  _ -> g
+type Size = Int
 
-expand :: Grid Tile -> Grid Tile
-expand g = case f of
-            U -> set (Head U D) $ moveUp (set (Tail b) g)
-            D -> set (Head D U) $ moveDown (set (Tail b) g)
-            L -> set (Head L R) $ moveLeft (set (Tail b) g)
-            R -> set (Head R L) $ moveRight (set (Tail b) g)
+board :: Snake -> Position -> Tile
+board (Snake _ ps) p = if p `elem` ps then On else Off
+
+step :: Snake -> Snake
+step (Snake d (h : t)) = Snake d ((move h d) : h : init t)
+
+move :: Position -> Dir -> Position
+move (Position r c) U = Position (r - 1) c
+move (Position r c) D = Position (r + 1) c
+move (Position r c) L = Position r (c - 1)
+move (Position r c) R = Position r (c + 1)
+
+initModel :: Int -> Model
+initModel size = Model size (Snake R [Position (mid + 1) mid, Position mid mid, Position (mid-1) mid]) False
   where
-    (Head f b) = focus g
+    mid = div size 2
 
-makeCells :: Grid Tile -> [Tile]
-makeCells g = do
-  row <- (toLists g)
-  state <- row
-  return state
-
-initBoard :: Int -> Board
-initBoard size = set (Head D U) $ moveDown (set (Tail U) $ moveDown (set (Tail U) middle))
-  where
-    empty = emptyBoard size
-    middle = fromMaybe empty $ safeRightN (div size 2) empty >>= safeDownN (div size 2)
-
-emptyBoard :: Int -> Board
-emptyBoard size = fromLists (Prelude.replicate size (Prelude.replicate size Empty))
-
-snake :: App Model Action
-snake =
-  (component (Model $ initBoard size) updateModel viewModel)
+snakeMain :: App Model Action
+snakeMain =
+  (component (initModel size) updateModel viewModel)
     { events = pointerEvents,
+      subs = [arrowsSub GetArrows],
       styles = [Sheet (sheet size)]
     }
   where
     size = 15
 
-newtype Model = Model {_value :: Grid Tile}
+data Model = Model { boardSize :: Size, snake :: Snake , running :: Bool }
   deriving (Show, Eq)
 
 -----------------------------------------------------------------------------
 instance ToMisoString Model where
-  toMisoString (Model v) = toMisoString (show v)
+  toMisoString (Model _ s _) = toMisoString (show s)
 
 -----------------------------------------------------------------------------
-value :: Lens Model (Grid Tile)
-value = lens _value $ \m v -> m {_value = v}
+-- value :: Lens Model (Grid Tile)
+-- value = lens _value $ \m v -> m {_value = v}
 
 -----------------------------------------------------------------------------
 data Action
   = Step
   | Run
+  | GetArrows Arrows
   deriving (Show)
 
 updateModel :: Action -> Transition Model Action
 updateModel Step = do
-  -- value %= step
-  (Model grid) <- get
-  io_ $ consoleLog (ms (show (position grid)))
   io_ $ consoleLog "step"
+  -- value %= step
+  modify (\(Model size snake _) -> Model size (step snake) True)
+  get >>= (\(Model _ s _) -> io_ $ consoleLog (ms (show s)))
 updateModel Run = do
-  value %= step
-  io $ pure Run
+  -- modify (\(Model size snake _) -> Model size (step snake) True)
+  -- value %= step
+  batch [pure Step, pure Run]
+  -- io $ pure Run
+-- updateModel (ChangeDir d) =
+--   modify (\(Model size (Snake _ ps)) -> Model size (Snake d ps))
+updateModel (GetArrows a) =
+  case (getDir a) of
+    Just dir -> do
+      (Model size (Snake _ ps) running) <- get
+      if running
+      then modify (\(Model size (Snake _ ps) _) -> Model size (Snake dir ps) True)
+      else modify (\(Model size (Snake _ ps) _) -> Model size (Snake dir ps) True) >> (io $ pure Run)
+      -- io $ pure (ChangeDir dir)
+    Nothing -> pure ()
+  
+getDir :: Arrows -> Maybe Dir
+getDir (Arrows 1 0) = Just R
+getDir (Arrows (-1) 0) = Just L
+getDir (Arrows 0 1) = Just U
+getDir (Arrows 0 (-1)) = Just D
+getDir _ = Nothing
+
+positions :: Size -> [Position]
+positions s = [ Position r c | r <- [0..s-1], c <- [0..s-1] ]
 
 viewModel :: Model -> View Model Action
-viewModel (Model grid) =
+viewModel (Model size snake _) =
   div_
     [class_ "grid-container"]
-    [ div_
-        []
-        [button_ [onPointerDown (const Step)] [text "Step"]],
-      div_
-        []
-        [button_ [onPointerDown (const Run)] [text "Run"]],
+    [
+    -- [ div_
+    --     []
+    --     [button_ [onPointerDown (const Step)] [text "Step"]],
+    --   div_
+    --     []
+    --     [button_ [onPointerDown (const Run)] [text "Run"]],
       div_
         [class_ "container"]
-        (cellView <$> makeCells grid)
+        (cellView <$> ((board snake) <$> positions size))
     ]
 
 cellView :: Tile -> View Model Action
-cellView Empty = div_ [class_ "grid-cell-off"] []
-cellView (Head dir _) = div_ [class_ "grid-cell-on"] [ text (ms (show dir)) ]
-cellView (Tail dir) = div_ [class_ "grid-cell-on"] [ text (ms (show dir)) ]
+cellView Off = div_ [class_ "grid-cell-off"] []
+cellView On = div_ [class_ "grid-cell-on"] []
 
 sheet :: Int -> StyleSheet
 sheet size =

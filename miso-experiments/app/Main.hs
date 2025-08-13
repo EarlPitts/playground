@@ -5,4 +5,4 @@ import Snake
 import Miso
 
 main :: IO ()
-main = run $ startComponent snake
+main = run $ startComponent snakeMain
