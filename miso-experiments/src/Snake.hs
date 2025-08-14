@@ -83,7 +83,7 @@ data Action
   deriving (Show)
 
 togglePause :: Transition Model Action
-togglePause = do isRunning %= not
+togglePause = isRunning %= not
 
 updateModel :: Action -> Transition Model Action
 updateModel Step = snake %= step
@@ -93,7 +93,8 @@ updateModel (GetArrows a) =
   case (getDir a) of
     Just dir -> do
       snake %= changeDir dir
-      use isRunning >>= (flip when) (io $ pure Run)
+      running <- use isRunning
+      unless running (isRunning .= True >> (io $ pure Run))
     Nothing -> pure ()
   
 getDir :: Arrows -> Maybe Dir
