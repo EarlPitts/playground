@@ -3,16 +3,12 @@
 module Snake where
 
 import Grid
-import Data.Maybe
-import Control.Comonad
+import Data.Set as S
+import Control.Monad
 import Miso hiding (media_, focus, update, set, Off)
-import Miso.Lens hiding (set)
+import Miso.Lens
 import Miso.String (ms, toMisoString, ToMisoString)
 import Miso.Style hiding (ms, filter, position)
-import Debug.Trace
-import Control.Monad
-
-type Board = [[Position]]
 
 data Dir = U | D | L | R deriving (Show, Eq)
 
@@ -27,6 +23,7 @@ board (Snake _ ps) p = if p `elem` ps then On else Off
 
 step :: Snake -> Snake
 step (Snake d (h : t)) = Snake d ((move h d) : h : init t)
+step _ = error "shouldn't happen"
 
 move :: Position -> Dir -> Position
 move (Position r c) U = Position (r - 1) c
@@ -39,17 +36,25 @@ initModel size = Model size (Snake R [Position (mid + 1) mid, Position mid mid, 
   where
     mid = div size 2
 
+keyMaps :: ([Int], [Int], [Int], [Int])
+keyMaps = (
+  [87, 38, 75], -- up
+  [83, 40, 74], -- down
+  [65, 37, 72], -- left
+  [68, 39, 76]  -- right
+  )
+
 snakeMain :: App Model Action
 snakeMain =
   (component (initModel size) updateModel viewModel)
     { events = pointerEvents,
-      subs = [arrowsSub GetArrows],
+      subs = [directionSub keyMaps GetArrows, keyboardSub GetKeys],
       styles = [Sheet (sheet size)]
     }
   where
     size = 15
 
-data Model = Model { boardSize :: Size, snake :: Snake , running :: Bool }
+data Model = Model { _boardSize :: Size, _snake :: Snake , _isRunning :: Bool }
   deriving (Show, Eq)
 
 -----------------------------------------------------------------------------
@@ -57,29 +62,30 @@ instance ToMisoString Model where
   toMisoString (Model _ s _) = toMisoString (show s)
 
 -----------------------------------------------------------------------------
--- value :: Lens Model (Grid Tile)
--- value = lens _value $ \m v -> m {_value = v}
+snake :: Lens Model Snake
+snake = lens _snake $ \m v -> m {_snake = v}
+
+boardSize :: Lens Model Size
+boardSize = lens _boardSize $ \m v -> m {_boardSize = v}
+
+isRunning :: Lens Model Bool
+isRunning = lens _isRunning $ \m v -> m {_isRunning = v}
 
 -----------------------------------------------------------------------------
 data Action
   = Step
   | Run
   | GetArrows Arrows
+  | GetKeys (Set Int)
   deriving (Show)
 
+togglePause :: Transition Model Action
+togglePause = do isRunning %= not
+
 updateModel :: Action -> Transition Model Action
-updateModel Step = do
-  io_ $ consoleLog "step"
-  -- value %= step
-  modify (\(Model size snake _) -> Model size (step snake) True)
-  get >>= (\(Model _ s _) -> io_ $ consoleLog (ms (show s)))
-updateModel Run = do
-  -- modify (\(Model size snake _) -> Model size (step snake) True)
-  -- value %= step
-  batch [pure Step, pure Run]
-  -- io $ pure Run
--- updateModel (ChangeDir d) =
---   modify (\(Model size (Snake _ ps)) -> Model size (Snake d ps))
+updateModel Step = snake %= step
+updateModel Run = use isRunning >>= (flip when) (batch [pure Step, pure Run])
+updateModel (GetKeys keys) = when (S.member 32 keys) $ togglePause
 updateModel (GetArrows a) =
   case (getDir a) of
     Just dir -> do
@@ -87,7 +93,6 @@ updateModel (GetArrows a) =
       if running
       then modify (\(Model size (Snake _ ps) _) -> Model size (Snake dir ps) True)
       else modify (\(Model size (Snake _ ps) _) -> Model size (Snake dir ps) True) >> (io $ pure Run)
-      -- io $ pure (ChangeDir dir)
     Nothing -> pure ()
   
 getDir :: Arrows -> Maybe Dir
@@ -105,12 +110,6 @@ viewModel (Model size snake _) =
   div_
     [class_ "grid-container"]
     [
-    -- [ div_
-    --     []
-    --     [button_ [onPointerDown (const Step)] [text "Step"]],
-    --   div_
-    --     []
-    --     [button_ [onPointerDown (const Run)] [text "Run"]],
       div_
         [class_ "container"]
         (cellView <$> ((board snake) <$> positions size))

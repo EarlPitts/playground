@@ -13,7 +13,7 @@ library
   exposed-modules:
     Zipper, Grid, Life, Snake
   build-depends:
-    base < 5, comonad, miso
+    base < 5, comonad, miso, containers
   hs-source-dirs:
     src
   default-extensions: DeriveFunctor
