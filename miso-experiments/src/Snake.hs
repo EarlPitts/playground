@@ -3,7 +3,7 @@
 module Snake where
 
 import Grid
-import Data.Set as S
+import qualified Data.Set as S
 import Control.Monad
 import Miso hiding (media_, focus, update, set, Off)
 import Miso.Lens
@@ -24,6 +24,9 @@ board (Snake _ ps) p = if p `elem` ps then On else Off
 step :: Snake -> Snake
 step (Snake d (h : t)) = Snake d ((move h d) : h : init t)
 step _ = error "shouldn't happen"
+
+changeDir :: Dir -> Snake -> Snake
+changeDir dir (Snake _ ps) = Snake dir ps
 
 move :: Position -> Dir -> Position
 move (Position r c) U = Position (r - 1) c
@@ -76,7 +79,7 @@ data Action
   = Step
   | Run
   | GetArrows Arrows
-  | GetKeys (Set Int)
+  | GetKeys (S.Set Int)
   deriving (Show)
 
 togglePause :: Transition Model Action
@@ -89,10 +92,8 @@ updateModel (GetKeys keys) = when (S.member 32 keys) $ togglePause
 updateModel (GetArrows a) =
   case (getDir a) of
     Just dir -> do
-      (Model size (Snake _ ps) running) <- get
-      if running
-      then modify (\(Model size (Snake _ ps) _) -> Model size (Snake dir ps) True)
-      else modify (\(Model size (Snake _ ps) _) -> Model size (Snake dir ps) True) >> (io $ pure Run)
+      snake %= changeDir dir
+      use isRunning >>= (flip when) (io $ pure Run)
     Nothing -> pure ()
   
 getDir :: Arrows -> Maybe Dir
