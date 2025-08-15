@@ -3,6 +3,7 @@
 module Snake where
 
 import Grid
+import Data.List
 import System.Random
 import qualified Data.Set as S
 import Control.Monad
@@ -26,13 +27,25 @@ step :: Snake -> Snake
 step (Snake d (h : t)) = Snake d ((move h d) : h : init t)
 step _ = error "shouldn't happen"
 
-randPos :: Int -> Size -> Position
-randPos seed size = Position (mod (abs x) size) (mod (abs y) size)
+randPos :: Snake -> Size -> Position
+randPos (Snake _ ps) size = Position (mod (abs x) size) (mod (abs y) size)
   where
-    ((x, y), _) = uniform (mkStdGen seed)
+    ((x, y), _) = uniform (mkStdGen n)
+    n = sum $ (\(Position r c) -> r + c) <$> ps
 
 changeDir :: Dir -> Snake -> Snake
 changeDir dir (Snake _ ps) = Snake dir ps
+
+munch :: Snake -> Fruits -> (Snake, Fruits)
+munch s@(Snake d (h:t)) f@(Fruits fs) = if h `elem` fs
+  then (Snake d (h:h:t), Fruits (delete h fs))
+  else (s, f)
+
+-- expand :: Snake -> Snake
+-- expand (Snake d ps) =  Snake d newPs
+--   where
+--     [end, almostEnd] = take 2 $ reverse ps
+--     newPs = _
 
 move :: Position -> Dir -> Position
 move (Position r c) U = Position (r - 1) c
@@ -75,27 +88,24 @@ data Model = Model {
   }
   deriving (Show, Eq)
 
------------------------------------------------------------------------------
 -- instance ToMisoString Model where
 --   toMisoString (Model _ s _ _ _) = toMisoString (show s)
 
------------------------------------------------------------------------------
-snake :: Lens Model Snake
-snake = lens _snake $ \m v -> m {_snake = v}
+snakeL :: Lens Model Snake
+snakeL = lens _snake $ \m v -> m {_snake = v}
 
-fruits :: Lens Model Fruits
-fruits = lens _fruits $ \m v -> m {_fruits = v}
+fruitsL :: Lens Model Fruits
+fruitsL = lens _fruits $ \m v -> m {_fruits = v}
 
-boardSize :: Lens Model Size
-boardSize = lens _boardSize $ \m v -> m {_boardSize = v}
+boardSizeL :: Lens Model Size
+boardSizeL = lens _boardSize $ \m v -> m {_boardSize = v}
 
-isRunning :: Lens Model Bool
-isRunning = lens _isRunning $ \m v -> m {_isRunning = v}
+isRunningL :: Lens Model Bool
+isRunningL = lens _isRunning $ \m v -> m {_isRunning = v}
 
-ticks :: Lens Model Int
-ticks = lens _ticks $ \m v -> m {_ticks = v}
+ticksL :: Lens Model Int
+ticksL = lens _ticks $ \m v -> m {_ticks = v}
 
------------------------------------------------------------------------------
 data Action
   = Step
   | Run
@@ -104,13 +114,13 @@ data Action
   deriving (Show)
 
 togglePause :: Transition Model Action
-togglePause = isRunning %= not
+togglePause = isRunningL %= not
 
 incrTick :: Transition Model Action
-incrTick = ticks += 1
+incrTick = ticksL += 1
 
 updateModel :: Action -> Transition Model Action
-updateModel Run = use isRunning >>= (flip when) (batch [pure Step, pure Run])
+updateModel Run = use isRunningL >>= (flip when) (batch [pure Step, pure Run])
 updateModel (GetKeys keys) = when (S.member 32 keys) $ togglePause
 updateModel (GetArrows a) = handleDirChange a
 updateModel Step = handleStep
@@ -118,20 +128,29 @@ updateModel Step = handleStep
 handleDirChange :: Arrows -> Transition Model Action
 handleDirChange a = case (getDir a) of
     Just dir -> do
-      snake %= changeDir dir
-      running <- use isRunning
-      unless running (isRunning .= True >> (io $ pure Run))
+      snakeL %= changeDir dir
+      running <- use isRunningL
+      unless running (isRunningL .= True >> (io $ pure Run))
     Nothing -> pure ()
+
+feedingTime :: Int -> Bool
+feedingTime ticks = (mod ticks 30) == 0
 
 handleStep :: Transition Model Action
 handleStep = do
   incrTick
-  snake %= step
-  t <- use ticks
+  snakeL %= step
+  t <- use ticksL
+  s <- use snakeL
+  fs <- use fruitsL
+  let (newS,newFs) = munch s fs
+  snakeL .= newS
+  fruitsL .= newFs
   when ((mod t 30) == 0) $ do
-    size <- use boardSize
-    let p = randPos t size
-    fruits %= addFruit p
+    size <- use boardSizeL
+    snake <- use snakeL
+    let p = randPos snake size
+    fruitsL %= addFruit p
   
 getDir :: Arrows -> Maybe Dir
 getDir (Arrows 1 0) = Just R
