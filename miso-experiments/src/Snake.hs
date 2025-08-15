@@ -2,20 +2,22 @@
 
 module Snake where
 
-import Grid
-import Data.List
-import System.Random
-import qualified Data.Set as S
 import Control.Monad
-import Miso hiding (media_, focus, update, set, Off)
+import Data.List
+import qualified Data.Set as S
+import Grid
+import Miso hiding (Off, focus, media_, set, update)
 import Miso.Lens
-import Miso.String (ms, toMisoString, ToMisoString)
-import Miso.Style hiding (ms, filter, position)
+import Miso.String (ms)
+import Miso.Style hiding (filter, ms, position)
+import System.Random
 
 data Dir = U | D | L | R deriving (Show, Eq)
 
 data Snake = Snake Dir [Position] deriving (Show, Eq)
+
 data Fruits = Fruits [Position] deriving (Show, Eq)
+
 data Tile = On | Off
 
 type Size = Int
@@ -37,12 +39,12 @@ changeDir :: Dir -> Snake -> Snake
 changeDir dir (Snake _ ps) = Snake dir ps
 
 onFruit :: Snake -> Fruits -> Bool
-onFruit (Snake _ (h:_)) (Fruits fs) = h `elem` fs
+onFruit (Snake _ (h : _)) (Fruits fs) = h `elem` fs
 onFruit (Snake _ []) _ = error "shouldn't happen"
 
 munch :: Snake -> Fruits -> (Snake, Fruits)
-munch (Snake d (h:t)) (Fruits fs) =
-  (Snake d (h:h:t), Fruits (delete h fs))
+munch (Snake d (h : t)) (Fruits fs) =
+  (Snake d (h : h : t), Fruits (delete h fs))
 munch _ _ = error "shouldn't happen"
 
 move :: Position -> Dir -> Position
@@ -55,16 +57,16 @@ addFruit :: Position -> Fruits -> Fruits
 addFruit p (Fruits fs) = Fruits (p : fs)
 
 initModel :: Int -> Model
-initModel size = Model size (Snake R [Position (mid + 1) mid, Position mid mid, Position (mid-1) mid]) (Fruits []) False 0
+initModel size = Model size (Snake R [Position (mid + 1) mid, Position mid mid, Position (mid - 1) mid]) (Fruits []) False 0
   where
     mid = div size 2
 
 keyMaps :: ([Int], [Int], [Int], [Int])
-keyMaps = (
-  [87, 38, 75], -- up
-  [83, 40, 74], -- down
-  [65, 37, 72], -- left
-  [68, 39, 76]  -- right
+keyMaps =
+  ( [87, 38, 75], -- up
+    [83, 40, 74], -- down
+    [65, 37, 72], -- left
+    [68, 39, 76] -- right
   )
 
 snakeMain :: App Model Action
@@ -77,17 +79,14 @@ snakeMain =
   where
     size = 15
 
-data Model = Model {
-   _boardSize :: Size
-  ,_snake :: Snake
-  ,_fruits :: Fruits
-  ,_isRunning :: Bool
-  ,_ticks :: Int
+data Model = Model
+  { _boardSize :: Size,
+    _snake :: Snake,
+    _fruits :: Fruits,
+    _isRunning :: Bool,
+    _ticks :: Int
   }
   deriving (Show, Eq)
-
--- instance ToMisoString Model where
---   toMisoString (Model _ s _ _ _) = toMisoString (show s)
 
 snakeL :: Lens Model Snake
 snakeL = lens _snake $ \m v -> m {_snake = v}
@@ -125,11 +124,11 @@ updateModel Step = handleStep
 
 handleDirChange :: Arrows -> Transition Model Action
 handleDirChange a = case (getDir a) of
-    Just dir -> do
-      snakeL %= changeDir dir
-      running <- use isRunningL
-      unless running (isRunningL .= True >> (io $ pure Run))
-    Nothing -> pure ()
+  Just dir -> do
+    snakeL %= changeDir dir
+    running <- use isRunningL
+    unless running (isRunningL .= True >> (io $ pure Run))
+  Nothing -> pure ()
 
 feedingTime :: Int -> Bool
 feedingTime ticks = (mod ticks 30) == 0
@@ -145,10 +144,10 @@ eat = do
 
 feed :: Transition Model Action
 feed = do
-    size <- use boardSizeL
-    snake <- use snakeL
-    let p = randPos snake size
-    fruitsL %= addFruit p
+  size <- use boardSizeL
+  snake <- use snakeL
+  let p = randPos snake size
+  fruitsL %= addFruit p
 
 handleStep :: Transition Model Action
 handleStep = do
@@ -166,14 +165,13 @@ getDir (Arrows 0 (-1)) = Just D
 getDir _ = Nothing
 
 positions :: Size -> [Position]
-positions s = [ Position r c | r <- [0..s-1], c <- [0..s-1] ]
+positions s = [Position r c | r <- [0 .. s - 1], c <- [0 .. s - 1]]
 
 viewModel :: Model -> View Model Action
 viewModel (Model size snake fruits _ _) =
   div_
     [class_ "grid-container"]
-    [
-      div_
+    [ div_
         [class_ "container"]
         (cellView <$> ((board snake fruits) <$> positions size))
     ]
