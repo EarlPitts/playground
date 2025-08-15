@@ -36,16 +36,14 @@ randPos (Snake _ ps) size = Position (mod (abs x) size) (mod (abs y) size)
 changeDir :: Dir -> Snake -> Snake
 changeDir dir (Snake _ ps) = Snake dir ps
 
-munch :: Snake -> Fruits -> (Snake, Fruits)
-munch s@(Snake d (h:t)) f@(Fruits fs) = if h `elem` fs
-  then (Snake d (h:h:t), Fruits (delete h fs))
-  else (s, f)
+onFruit :: Snake -> Fruits -> Bool
+onFruit (Snake _ (h:_)) (Fruits fs) = h `elem` fs
+onFruit (Snake _ []) _ = error "shouldn't happen"
 
--- expand :: Snake -> Snake
--- expand (Snake d ps) =  Snake d newPs
---   where
---     [end, almostEnd] = take 2 $ reverse ps
---     newPs = _
+munch :: Snake -> Fruits -> (Snake, Fruits)
+munch (Snake d (h:t)) (Fruits fs) =
+  (Snake d (h:h:t), Fruits (delete h fs))
+munch _ _ = error "shouldn't happen"
 
 move :: Position -> Dir -> Position
 move (Position r c) U = Position (r - 1) c
@@ -136,22 +134,30 @@ handleDirChange a = case (getDir a) of
 feedingTime :: Int -> Bool
 feedingTime ticks = (mod ticks 30) == 0
 
-handleStep :: Transition Model Action
-handleStep = do
-  incrTick
-  snakeL %= step
-  t <- use ticksL
+eat :: Transition Model Action
+eat = do
   s <- use snakeL
   fs <- use fruitsL
-  let (newS,newFs) = munch s fs
-  snakeL .= newS
-  fruitsL .= newFs
-  when ((mod t 30) == 0) $ do
+  when (onFruit s fs) $ do
+    let (newS, newFs) = munch s fs
+    snakeL .= newS
+    fruitsL .= newFs
+
+feed :: Transition Model Action
+feed = do
     size <- use boardSizeL
     snake <- use snakeL
     let p = randPos snake size
     fruitsL %= addFruit p
-  
+
+handleStep :: Transition Model Action
+handleStep = do
+  incrTick
+  snakeL %= step
+  eat
+  t <- use ticksL
+  when (feedingTime t) feed
+
 getDir :: Arrows -> Maybe Dir
 getDir (Arrows 1 0) = Just R
 getDir (Arrows (-1) 0) = Just L
