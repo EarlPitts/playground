@@ -8,9 +8,10 @@ import qualified Data.Set as S
 import Grid
 import Miso hiding (Off, focus, media_, set, update)
 import Miso.Lens
-import Miso.String (ms)
+import Miso.String (ms, MisoString)
 import Miso.Style hiding (filter, ms, position)
 import System.Random
+import Language.Javascript.JSaddle (jsg, (#))
 
 data Dir = U | D | L | R deriving (Show, Eq)
 
@@ -69,11 +70,21 @@ keyMaps =
     [68, 39, 76] -- right
   )
 
+-- Send an action every n millisecond
+every :: Int -> Action -> Sub Action
+every n a sink = do
+  win <- jsg ("window" :: MisoString)
+  void $ win # ("setInterval" :: MisoString) $ (asyncCallback $ sink a, n)
+
 snakeMain :: App Model Action
 snakeMain =
   (component (initModel size) updateModel viewModel)
     { events = pointerEvents,
-      subs = [directionSub keyMaps GetArrows, keyboardSub GetKeys],
+      subs = [
+          directionSub keyMaps GetArrows
+        , keyboardSub GetKeys
+        , every 150 Step
+        ],
       styles = [Sheet (sheet size)]
     }
   where
@@ -105,7 +116,6 @@ ticksL = lens _ticks $ \m v -> m {_ticks = v}
 
 data Action
   = Step
-  | Run
   | GetArrows Arrows
   | GetKeys (S.Set Int)
   deriving (Show)
@@ -117,17 +127,16 @@ incrTick :: Transition Model Action
 incrTick = ticksL += 1
 
 updateModel :: Action -> Transition Model Action
-updateModel Run = use isRunningL >>= (flip when) (batch [pure Step, pure Run])
 updateModel (GetKeys keys) = when (S.member 32 keys) $ togglePause
 updateModel (GetArrows a) = handleDirChange a
-updateModel Step = handleStep
+updateModel Step = use isRunningL >>= (flip when) handleStep
 
 handleDirChange :: Arrows -> Transition Model Action
 handleDirChange a = case (getDir a) of
   Just dir -> do
     snakeL %= changeDir dir
     running <- use isRunningL
-    unless running (isRunningL .= True >> (io $ pure Run))
+    unless running (isRunningL .= True)
   Nothing -> pure ()
 
 feedingTime :: Int -> Bool

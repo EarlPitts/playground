@@ -24,6 +24,7 @@
           shell.overrideAttrs (drv: {
             buildInputs = drv.buildInputs ++ [
               haskellPackages.haskell-language-server
+              # (pkgs.haskell-language-server.override { supportedGhcVersions = [ "912" ]; })
               haskellPackages.fourmolu
               haskellPackages.hlint
               pkgs.chromium
