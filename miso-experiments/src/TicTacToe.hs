@@ -2,9 +2,14 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
+
 
 module TicTacToe where
 
+import GHC.Generics
 import Data.Foldable (asum)
 import Data.List (transpose)
 import Data.Map ()
@@ -13,15 +18,12 @@ import Miso hiding (style_)
 import Miso.Lens
 import Miso.String (MisoString, ToMisoString, ms, toMisoString)
 import Miso.Style hiding (ms)
+import Data.Aeson (FromJSON, ToJSON)
 
 ticTacToeApp :: App Model Action
-ticTacToeApp = component initModel updateModel viewModel
-  where
-    initialAction = Nothing
-    events = defaultEvents
-    -- subs          = []
-    mountPoint = Nothing
-    logLevel = Off
+ticTacToeApp = (component initModel updateModel viewModel) {
+    initialAction = Just LoadStats
+  }
 
 data Model = Model
   { _grid :: Grid,
@@ -36,7 +38,7 @@ data Model = Model
 
 type Moves = Int
 
-data Stat = Stat PlayerNames Player Moves deriving (Show, Eq)
+data Stat = Stat PlayerNames Player Moves deriving (Show, Eq, Generic, FromJSON, ToJSON)
 
 instance ToMisoString Stat where
   toMisoString (Stat (PlayerNames p1 p2) player moves) =
@@ -47,7 +49,7 @@ instance ToMisoString Stat where
 data Player
   = X
   | O
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, FromJSON, ToJSON)
 
 type Grid = [[Maybe Player]]
 
@@ -59,7 +61,7 @@ aGrid =
     replicate 3 Nothing
   ]
 
-data PlayerNames = PlayerNames MisoString MisoString deriving (Show, Eq)
+data PlayerNames = PlayerNames MisoString MisoString deriving (Show, Eq, Generic, FromJSON, ToJSON)
 
 hasWinner :: Grid -> Maybe Player
 hasWinner g =
@@ -135,6 +137,9 @@ data Action
   = ClickPlayer Int Int
   | NewGame
   | SetNames PlayerNames
+  | LoadStats
+  | UpdateStats [Stat]
+  | SaveStats [Stat]
   deriving (Show, Eq)
 
 updateModel :: Action -> Transition Model Action
@@ -144,6 +149,14 @@ updateModel NewGame = do
   put $ initModel {_names = ns, _isRunning = True, _stats = stats}
 updateModel (SetNames ns) = do
   namesL .= ns
+updateModel (SaveStats stats) =
+  io_ $ setLocalStorage "stats" stats
+updateModel LoadStats = io $ do
+  maybeStats <- getLocalStorage "stats"
+  case maybeStats of
+    Right stats -> pure $ UpdateStats stats
+    Left _ -> pure $ UpdateStats []
+updateModel (UpdateStats stats) = statsL .= stats
 updateModel (ClickPlayer r c) = do
   Model grid player _ _ _ _ _ <- get
   movesL += 1
@@ -155,7 +168,9 @@ updateModel (ClickPlayer r c) = do
       winnerL .= winner
       isRunningL .= False
       m <- get
-      statsL .= updateStats m
+      let newStats = updateStats m
+      statsL .= newStats
+      issue $ SaveStats newStats
     else do
       gridL .= newGrid
       currentPlayerL %= nextPlayer
