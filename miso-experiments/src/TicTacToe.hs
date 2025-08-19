@@ -6,17 +6,18 @@
 module TicTacToe where
 
 import Data.Foldable (asum)
-import Data.List (transpose, (!!))
+import Data.List (transpose)
 import Data.Map ()
 import Data.Maybe (isJust, isNothing)
 import Miso hiding (style_)
+import Miso.Lens
 import Miso.String (MisoString, ms)
 import Miso.Style hiding (ms)
 
 ticTacToeApp :: App Model Action
 ticTacToeApp = component initModel updateModel viewModel
   where
-    -- initialAction = None
+    initialAction = Nothing
     events = defaultEvents
     -- subs          = []
     mountPoint = Nothing
@@ -25,11 +26,11 @@ ticTacToeApp = component initModel updateModel viewModel
 initModel :: Model
 initModel =
   Model
-    { grid = emptyGrid,
-      currentPlayer = X,
-      winner = Nothing,
-      names = PlayerNames "" "",
-      isRunning = False
+    { _grid = emptyGrid,
+      _currentPlayer = X,
+      _winner = Nothing,
+      _names = PlayerNames "" "",
+      _isRunning = False
     }
 
 data Player
@@ -71,41 +72,6 @@ nextPlayer :: Player -> Player
 nextPlayer X = O
 nextPlayer O = X
 
-data Model = Model
-  { grid :: Grid,
-    currentPlayer :: Player,
-    winner :: Maybe Player,
-    names :: PlayerNames,
-    isRunning :: Bool
-  }
-  deriving (Show, Eq)
-
-data Action
-  = ClickPlayer Int Int
-  | NewGame
-  | SetNames PlayerNames
-  deriving (Show, Eq)
-
-updateModel :: Action -> Transition Model Action
-updateModel (ClickPlayer rowId colId) = do
-  m@(Model grid player _ names _) <- get
-  let newGrid = (mark rowId colId player grid)
-  let winner = hasWinner newGrid
-  if (isJust winner)
-    then put (Model newGrid player winner names False)
-    else
-      let isRunning = not (isFinished m)
-       in put (Model newGrid (nextPlayer player) Nothing names isRunning)
-updateModel NewGame = do
-  (Model _ _ _ names _) <- get
-  put $ Model emptyGrid X Nothing names True
-updateModel (SetNames names) = do
-  (Model grid currentPlayer winner _ _) <- get
-  put $ Model grid currentPlayer winner names False
-
-bootstrapUrl :: MisoString
-bootstrapUrl = "https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
-
 mark :: Int -> Int -> Player -> Grid -> Grid
 mark r c sq g = newGrid
   where
@@ -116,6 +82,57 @@ mark r c sq g = newGrid
 isFinished :: Model -> Bool
 isFinished (Model _ _ (Just _) _ _) = True
 isFinished (Model grid _ _ _ _) = all id $ fmap (all isJust) grid
+
+data Model = Model
+  { _grid :: Grid,
+    _currentPlayer :: Player,
+    _winner :: Maybe Player,
+    _names :: PlayerNames,
+    _isRunning :: Bool
+  }
+  deriving (Show, Eq)
+
+gridL :: Lens Model Grid
+gridL = lens _grid (\m v -> m {_grid = v})
+
+currentPlayerL :: Lens Model Player
+currentPlayerL = lens _currentPlayer (\m v -> m {_currentPlayer = v})
+
+winnerL :: Lens Model (Maybe Player)
+winnerL = lens _winner (\m v -> m {_winner = v})
+
+namesL :: Lens Model PlayerNames
+namesL = lens _names (\m v -> m {_names = v})
+
+isRunningL :: Lens Model Bool
+isRunningL = lens _isRunning (\m v -> m {_isRunning = v})
+
+data Action
+  = ClickPlayer Int Int
+  | NewGame
+  | SetNames PlayerNames
+  deriving (Show, Eq)
+
+updateModel :: Action -> Transition Model Action
+updateModel NewGame = do
+  ns <- use namesL
+  put $ initModel {_names = ns, _isRunning = True}
+updateModel (SetNames ns) = do
+  namesL .= ns
+updateModel (ClickPlayer r c) = do
+  Model grid player _ _ _ <- get
+  let newGrid = (mark r c player grid)
+  let winner = hasWinner newGrid
+  if (isJust winner)
+    then gridL .= newGrid >> winnerL .= winner >> isRunningL .= False
+    else do
+      gridL .= newGrid
+      currentPlayerL %= nextPlayer
+      m <- get
+      isRunningL .= not (isFinished m)
+
+bootstrapUrl :: MisoString
+bootstrapUrl = "https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
 
 viewModel :: Model -> View Model Action
 viewModel m =
