@@ -11,9 +11,9 @@ library
   import:
     warnings
   exposed-modules:
-    Zipper, Grid, Life, Snake
+    Zipper, Grid, Life, Snake, Todo, TicTacToe
   build-depends:
-    base < 5, comonad, miso, containers, random, jsaddle
+    base < 5, comonad, miso, containers, random, jsaddle, time
   hs-source-dirs:
     src
   default-extensions: DeriveFunctor
