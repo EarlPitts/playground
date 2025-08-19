@@ -11,7 +11,7 @@ import Data.Map ()
 import Data.Maybe (isJust, isNothing)
 import Miso hiding (style_)
 import Miso.Lens
-import Miso.String (MisoString, ms)
+import Miso.String (MisoString, ToMisoString, ms, toMisoString)
 import Miso.Style hiding (ms)
 
 ticTacToeApp :: App Model Action
@@ -23,15 +23,26 @@ ticTacToeApp = component initModel updateModel viewModel
     mountPoint = Nothing
     logLevel = Off
 
-initModel :: Model
-initModel =
-  Model
-    { _grid = emptyGrid,
-      _currentPlayer = X,
-      _winner = Nothing,
-      _names = PlayerNames "" "",
-      _isRunning = False
-    }
+data Model = Model
+  { _grid :: Grid,
+    _currentPlayer :: Player,
+    _winner :: Maybe Player,
+    _names :: PlayerNames,
+    _isRunning :: Bool,
+    _moves :: Moves,
+    _stats :: [Stat]
+  }
+  deriving (Show, Eq)
+
+type Moves = Int
+
+data Stat = Stat PlayerNames Player Moves deriving (Show, Eq)
+
+instance ToMisoString Stat where
+  toMisoString (Stat (PlayerNames p1 p2) player moves) =
+    p1 <> " - " <> p2 <> ", won by " <> winner <> " in " <> (ms moves) <> " moves"
+    where
+      winner = if player == X then p1 else p2
 
 data Player
   = X
@@ -80,17 +91,24 @@ mark r c sq g = newGrid
     newGrid = take r g ++ [newRow] ++ drop (r + 1) g
 
 isFinished :: Model -> Bool
-isFinished (Model _ _ (Just _) _ _) = True
-isFinished (Model grid _ _ _ _) = all id $ fmap (all isJust) grid
+isFinished (Model _ _ (Just _) _ _ _ _) = True
+isFinished (Model grid _ _ _ _ _ _) = all id $ fmap (all isJust) grid
 
-data Model = Model
-  { _grid :: Grid,
-    _currentPlayer :: Player,
-    _winner :: Maybe Player,
-    _names :: PlayerNames,
-    _isRunning :: Bool
-  }
-  deriving (Show, Eq)
+updateStats :: Model -> [Stat]
+updateStats (Model _ _ (Just winner) names _ moves stats) = (Stat names winner moves) : stats
+updateStats _ = error "Shouldn't happen"
+
+initModel :: Model
+initModel =
+  Model
+    { _grid = emptyGrid,
+      _currentPlayer = X,
+      _winner = Nothing,
+      _names = PlayerNames "" "",
+      _isRunning = False,
+      _moves = 0,
+      _stats = []
+    }
 
 gridL :: Lens Model Grid
 gridL = lens _grid (\m v -> m {_grid = v})
@@ -107,6 +125,12 @@ namesL = lens _names (\m v -> m {_names = v})
 isRunningL :: Lens Model Bool
 isRunningL = lens _isRunning (\m v -> m {_isRunning = v})
 
+movesL :: Lens Model Moves
+movesL = lens _moves (\m v -> m {_moves = v})
+
+statsL :: Lens Model [Stat]
+statsL = lens _stats (\m v -> m {_stats = v})
+
 data Action
   = ClickPlayer Int Int
   | NewGame
@@ -116,15 +140,22 @@ data Action
 updateModel :: Action -> Transition Model Action
 updateModel NewGame = do
   ns <- use namesL
-  put $ initModel {_names = ns, _isRunning = True}
+  stats <- use statsL
+  put $ initModel {_names = ns, _isRunning = True, _stats = stats}
 updateModel (SetNames ns) = do
   namesL .= ns
 updateModel (ClickPlayer r c) = do
-  Model grid player _ _ _ <- get
+  Model grid player _ _ _ _ _ <- get
+  movesL += 1
   let newGrid = (mark r c player grid)
   let winner = hasWinner newGrid
   if (isJust winner)
-    then gridL .= newGrid >> winnerL .= winner >> isRunningL .= False
+    then do
+      gridL .= newGrid
+      winnerL .= winner
+      isRunningL .= False
+      m <- get
+      statsL .= updateStats m
     else do
       gridL .= newGrid
       currentPlayerL %= nextPlayer
@@ -141,7 +172,7 @@ viewModel m =
     [ headerView,
       newGameView m,
       contentView m,
-      -- , statsView m
+      statsView m,
       link_
         [ rel_ "stylesheet",
           href_ bootstrapUrl
@@ -162,7 +193,7 @@ headerView =
     ]
 
 newGameView :: Model -> View Model Action
-newGameView (Model _ _ _ (PlayerNames p1 p2) isRunning) =
+newGameView (Model _ _ _ (PlayerNames p1 p2) isRunning _ _) =
   nav_
     [class_ "navbar navbar-light bg-light"]
     [ form
@@ -200,11 +231,11 @@ newGameView (Model _ _ _ (PlayerNames p1 p2) isRunning) =
     ]
 
 contentView :: Model -> View Model Action
-contentView (Model grid currentPlayer winner names isRunning) =
+contentView (Model grid currentPlayer winner names isRunning _ _) =
   div_
     [style_ [margin "20px"]]
     [ gridView grid currentPlayer names isRunning,
-      alertView winner
+      alertView winner names
     ]
 
 gridView :: Grid -> Player -> PlayerNames -> Bool -> View Model Action
@@ -251,8 +282,8 @@ gridView grid currentPlayer (PlayerNames p1 p2) isRunning =
             [text (maybe "" (\sq -> if sq == X then "X" else "O") square)]
         ]
 
-alertView :: Maybe Player -> View Model Action
-alertView winner =
+alertView :: Maybe Player -> PlayerNames -> View Model Action
+alertView winner (PlayerNames p1 p2) =
   div_
     [ class_ "alert alert-warning",
       style_ [textAlign "center"],
@@ -260,7 +291,14 @@ alertView winner =
     ]
     [ h4_
         [class_ "alert-heading"]
-        [text (ms (show winner))]
+        [ text $
+            ( case winner of
+                Just X -> p1
+                Just O -> p2
+                _ -> ""
+            )
+              <> " won!"
+        ]
     ]
 
 fakeStats :: [MisoString]
@@ -270,14 +308,14 @@ fakeStats =
   ]
 
 statsView :: Model -> View Model Action
-statsView _ =
+statsView m =
   div_
     [ class_ "row justify-content-around align-items-center",
       style_ [marginBottom "20px"]
     ]
     [ ul_
         [class_ "list-group"]
-        ( flip map fakeStats $ \elt ->
-            ul_ [class_ "list-group-item"] [text elt]
+        ( flip map (_stats m) $ \elt ->
+            ul_ [class_ "list-group-item"] [text (ms elt)]
         )
     ]
