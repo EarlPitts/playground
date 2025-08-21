@@ -1,29 +1,29 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveAnyClass #-}
-
 
 module TicTacToe where
 
-import GHC.Generics
+import Data.Aeson (FromJSON, ToJSON)
 import Data.Foldable (asum)
 import Data.List (transpose)
 import Data.Map ()
 import Data.Maybe (isJust, isNothing)
+import GHC.Generics
 import Miso hiding (style_)
 import Miso.Lens
 import Miso.String (MisoString, ToMisoString, ms, toMisoString)
 import Miso.Style hiding (ms)
-import Data.Aeson (FromJSON, ToJSON)
 
 ticTacToeApp :: App Model Action
-ticTacToeApp = (component initModel updateModel viewModel) {
-    initialAction = Just LoadStats
-  }
+ticTacToeApp =
+  (component initModel updateModel viewModel)
+    { initialAction = Just LoadApp
+    }
 
 data Model = Model
   { _grid :: Grid,
@@ -32,7 +32,8 @@ data Model = Model
     _names :: PlayerNames,
     _isRunning :: Bool,
     _moves :: Moves,
-    _stats :: [Stat]
+    _stats :: [Stat],
+    _countries :: [Country]
   }
   deriving (Show, Eq)
 
@@ -52,6 +53,9 @@ data Player
   deriving (Show, Eq, Generic, FromJSON, ToJSON)
 
 type Grid = [[Maybe Player]]
+
+newtype Name = Name { common :: String } deriving (Eq, Show, Generic, FromJSON)
+data Country = Country { name :: Name, flag :: String } deriving (Eq, Show, Generic, FromJSON)
 
 emptyGrid, aGrid :: Grid
 emptyGrid = replicate 3 (replicate 3 Nothing)
@@ -93,11 +97,11 @@ mark r c sq g = newGrid
     newGrid = take r g ++ [newRow] ++ drop (r + 1) g
 
 isFinished :: Model -> Bool
-isFinished (Model _ _ (Just _) _ _ _ _) = True
-isFinished (Model grid _ _ _ _ _ _) = all id $ fmap (all isJust) grid
+isFinished (Model _ _ (Just _) _ _ _ _ _) = True
+isFinished (Model grid _ _ _ _ _ _ _) = all id $ fmap (all isJust) grid
 
 updateStats :: Model -> [Stat]
-updateStats (Model _ _ (Just winner) names _ moves stats) = (Stat names winner moves) : stats
+updateStats (Model _ _ (Just winner) names _ moves stats _) = (Stat names winner moves) : stats
 updateStats _ = error "Shouldn't happen"
 
 initModel :: Model
@@ -109,7 +113,8 @@ initModel =
       _names = PlayerNames "" "",
       _isRunning = False,
       _moves = 0,
-      _stats = []
+      _stats = [],
+      _countries = []
     }
 
 gridL :: Lens Model Grid
@@ -133,13 +138,18 @@ movesL = lens _moves (\m v -> m {_moves = v})
 statsL :: Lens Model [Stat]
 statsL = lens _stats (\m v -> m {_stats = v})
 
+countriesL :: Lens Model [Country]
+countriesL = lens _countries (\m v -> m {_countries = v})
+
 data Action
   = ClickPlayer Int Int
   | NewGame
   | SetNames PlayerNames
-  | LoadStats
+  | LoadApp
   | UpdateStats [Stat]
   | SaveStats [Stat]
+  | SetFlags [Country]
+  | None
   deriving (Show, Eq)
 
 updateModel :: Action -> Transition Model Action
@@ -151,14 +161,18 @@ updateModel (SetNames ns) = do
   namesL .= ns
 updateModel (SaveStats stats) =
   io_ $ setLocalStorage "stats" stats
-updateModel LoadStats = io $ do
-  maybeStats <- getLocalStorage "stats"
-  case maybeStats of
-    Right stats -> pure $ UpdateStats stats
-    Left _ -> pure $ UpdateStats []
+updateModel (SetFlags countries) = countriesL .= countries
+updateModel None = pure ()
+updateModel LoadApp = do
+  fetch "https://restcountries.com/v3.1/all?fields=name,flag" "GET" Nothing [] SetFlags (const $ None)
+  io $ do
+    maybeStats <- getLocalStorage "stats"
+    case maybeStats of
+      Right stats -> pure $ UpdateStats stats
+      Left _ -> pure $ UpdateStats []
 updateModel (UpdateStats stats) = statsL .= stats
 updateModel (ClickPlayer r c) = do
-  Model grid player _ _ _ _ _ <- get
+  Model grid player _ _ _ _ _ _ <- get
   movesL += 1
   let newGrid = (mark r c player grid)
   let winner = hasWinner newGrid
@@ -208,7 +222,7 @@ headerView =
     ]
 
 newGameView :: Model -> View Model Action
-newGameView (Model _ _ _ (PlayerNames p1 p2) isRunning _ _) =
+newGameView (Model _ _ _ (PlayerNames p1 p2) isRunning _ _ countries) =
   nav_
     [class_ "navbar navbar-light bg-light"]
     [ form
@@ -220,10 +234,13 @@ newGameView (Model _ _ _ (PlayerNames p1 p2) isRunning _ _) =
               onChange $ SetNames . (flip PlayerNames) p2,
               placeholder_ "Player 1"
             ],
-          -- , select_ [ class_       "custom-select"
-          --           , style_ [("margin-right", "15px")] ]
-          --           (flip map ["A", "B"] $ \option ->
-          --              option_ [ ] [ text option])
+          select_
+            [ class_ "custom-select",
+              style_ [("margin-right", "15px")]
+            ]
+            ( flip map (common . name <$> countries) $ \option ->
+                option_ [] [text $ ms option]
+            ),
           input_
             [ class_ "form-control mr-sm-2",
               type_ "text",
@@ -231,10 +248,14 @@ newGameView (Model _ _ _ (PlayerNames p1 p2) isRunning _ _) =
               onChange $ SetNames . PlayerNames p1,
               placeholder_ "Player 2"
             ],
-          -- , select_ [ class_       "custom-select"
-          --           , style_ [("margin-right", "15px")] ]
-          --           (flip map ["A", "B"] $ \option ->
-          --              option_ [ ] [ text option])
+          select_
+            [ class_ "custom-select",
+              style_ [("margin-right", "15px")]
+              -- TODO onChange $ CountrySelected
+            ]
+            ( flip map (common . name <$> countries) $ \option ->
+                option_ [ ] [text $ ms option]
+            ),
           button_
             [ class_ "btn btn-outline-warning",
               type_ "button",
@@ -246,7 +267,7 @@ newGameView (Model _ _ _ (PlayerNames p1 p2) isRunning _ _) =
     ]
 
 contentView :: Model -> View Model Action
-contentView (Model grid currentPlayer winner names isRunning _ _) =
+contentView (Model grid currentPlayer winner names isRunning _ _ _) =
   div_
     [style_ [margin "20px"]]
     [ gridView grid currentPlayer names isRunning,
