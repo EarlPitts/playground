@@ -10,8 +10,7 @@ module TicTacToe where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Foldable (asum)
-import Data.List (transpose)
-import Data.Map ()
+import Data.List (transpose, sort, find)
 import Data.Maybe (isJust, isNothing)
 import GHC.Generics
 import Miso hiding (style_)
@@ -29,20 +28,23 @@ data Model = Model
   { _grid :: Grid,
     _currentPlayer :: Player,
     _winner :: Maybe Player,
-    _names :: PlayerNames,
+    _playersData :: PlayersData,
     _isRunning :: Bool,
-    _moves :: Moves,
+    _moveCount :: Int,
     _stats :: [Stat],
     _countries :: [Country]
   }
   deriving (Show, Eq)
 
-type Moves = Int
+data Stat = Stat PlayersData Player Int deriving (Show, Eq, Generic, FromJSON, ToJSON)
 
-data Stat = Stat PlayerNames Player Moves deriving (Show, Eq, Generic, FromJSON, ToJSON)
+type Name = MisoString
+
+data PlayerData = PlayerData Name (Maybe Country) deriving (Show, Eq, Generic, FromJSON, ToJSON)
+data PlayersData = PlayersData PlayerData PlayerData deriving (Show, Eq, Generic, FromJSON, ToJSON)
 
 instance ToMisoString Stat where
-  toMisoString (Stat (PlayerNames p1 p2) player moves) =
+  toMisoString (Stat (PlayersData (PlayerData p1 _) (PlayerData p2 _)) player moves) =
     p1 <> " - " <> p2 <> ", won by " <> winner <> " in " <> (ms moves) <> " moves"
     where
       winner = if player == X then p1 else p2
@@ -54,8 +56,14 @@ data Player
 
 type Grid = [[Maybe Player]]
 
-newtype Name = Name { common :: String } deriving (Eq, Show, Generic, FromJSON)
-data Country = Country { name :: Name, flag :: String } deriving (Eq, Show, Generic, FromJSON)
+newtype CountryName = CountryName { common :: String } deriving (Eq, Show, Ord, Generic, FromJSON, ToJSON)
+data Country = Country { name :: CountryName, flag :: String } deriving (Eq, Show, Generic, FromJSON, ToJSON)
+  
+instance Ord Country where
+  compare (Country name _) (Country name' _) = compare name name'
+
+mkCountry :: [Country] -> MisoString -> Maybe Country
+mkCountry cs n = find (\c -> (ms . common . name) c == n) cs
 
 emptyGrid, aGrid :: Grid
 emptyGrid = replicate 3 (replicate 3 Nothing)
@@ -110,9 +118,9 @@ initModel =
     { _grid = emptyGrid,
       _currentPlayer = X,
       _winner = Nothing,
-      _names = PlayerNames "" "",
+      _playersData = PlayersData (PlayerData "" Nothing) (PlayerData "" Nothing),
       _isRunning = False,
-      _moves = 0,
+      _moveCount = 0,
       _stats = [],
       _countries = []
     }
@@ -126,14 +134,14 @@ currentPlayerL = lens _currentPlayer (\m v -> m {_currentPlayer = v})
 winnerL :: Lens Model (Maybe Player)
 winnerL = lens _winner (\m v -> m {_winner = v})
 
-namesL :: Lens Model PlayerNames
-namesL = lens _names (\m v -> m {_names = v})
+playersDataL :: Lens Model PlayersData
+playersDataL = lens _playersData (\m v -> m {_playersData = v})
 
 isRunningL :: Lens Model Bool
 isRunningL = lens _isRunning (\m v -> m {_isRunning = v})
 
-movesL :: Lens Model Moves
-movesL = lens _moves (\m v -> m {_moves = v})
+movesL :: Lens Model Int
+movesL = lens _moveCount (\m v -> m {_moveCount = v})
 
 statsL :: Lens Model [Stat]
 statsL = lens _stats (\m v -> m {_stats = v})
@@ -144,7 +152,8 @@ countriesL = lens _countries (\m v -> m {_countries = v})
 data Action
   = ClickPlayer Int Int
   | NewGame
-  | SetNames PlayerNames
+  | SetNames Name Name
+  | SetCountry (Maybe Country) (Maybe Country)
   | LoadApp
   | UpdateStats [Stat]
   | SaveStats [Stat]
@@ -154,14 +163,18 @@ data Action
 
 updateModel :: Action -> Transition Model Action
 updateModel NewGame = do
-  ns <- use namesL
+  pd <- use playersDataL
   stats <- use statsL
-  put $ initModel {_names = ns, _isRunning = True, _stats = stats}
-updateModel (SetNames ns) = do
-  namesL .= ns
+  put $ initModel {_playersData = pd, _isRunning = True, _stats = stats}
+updateModel (SetNames p1 p2) = do
+  (PlayersData (PlayerData _ c) (PlayerData _ c')) <- use playersDataL
+  playersDataL .= (PlayersData (PlayerData p1 c) (PlayerData p2 c'))
+updateModel (SetCountry c c') = do
+  (PlayersData (PlayerData n _) (PlayerData n' _)) <- use playersDataL
+  playersDataL .= (PlayersData (PlayerData n c) (PlayerData n' c'))
 updateModel (SaveStats stats) =
   io_ $ setLocalStorage "stats" stats
-updateModel (SetFlags countries) = countriesL .= countries
+updateModel (SetFlags countries) = countriesL .= (sort countries)
 updateModel None = pure ()
 updateModel LoadApp = do
   fetch "https://restcountries.com/v3.1/all?fields=name,flag" "GET" Nothing [] SetFlags (const $ None)
@@ -222,7 +235,7 @@ headerView =
     ]
 
 newGameView :: Model -> View Model Action
-newGameView (Model _ _ _ (PlayerNames p1 p2) isRunning _ _ countries) =
+newGameView (Model _ _ _ (PlayersData (PlayerData n c) (PlayerData n' c')) isRunning _ _ countries) =
   nav_
     [class_ "navbar navbar-light bg-light"]
     [ form
@@ -230,13 +243,14 @@ newGameView (Model _ _ _ (PlayerNames p1 p2) isRunning _ _ countries) =
         [ input_
             [ class_ "form-control mr-sm-2",
               type_ "text",
-              value_ (ms p1),
-              onChange $ SetNames . (flip PlayerNames) p2,
+              value_ n,
+              onChange $ flip SetNames $ n',
               placeholder_ "Player 1"
             ],
           select_
             [ class_ "custom-select",
-              style_ [("margin-right", "15px")]
+              style_ [("margin-right", "15px")],
+              onChange $ SetCountry c . mkCountry countries
             ]
             ( flip map (common . name <$> countries) $ \option ->
                 option_ [] [text $ ms option]
@@ -244,14 +258,14 @@ newGameView (Model _ _ _ (PlayerNames p1 p2) isRunning _ _ countries) =
           input_
             [ class_ "form-control mr-sm-2",
               type_ "text",
-              value_ p2,
-              onChange $ SetNames . PlayerNames p1,
+              value_ n',
+              onChange $ SetNames n,
               placeholder_ "Player 2"
             ],
           select_
             [ class_ "custom-select",
-              style_ [("margin-right", "15px")]
-              -- TODO onChange $ CountrySelected
+              style_ [("margin-right", "15px")],
+              onChange $ SetCountry c . mkCountry countries
             ]
             ( flip map (common . name <$> countries) $ \option ->
                 option_ [ ] [text $ ms option]
@@ -267,20 +281,20 @@ newGameView (Model _ _ _ (PlayerNames p1 p2) isRunning _ _ countries) =
     ]
 
 contentView :: Model -> View Model Action
-contentView (Model grid currentPlayer winner names isRunning _ _ _) =
+contentView (Model grid currentPlayer winner pd isRunning _ _ _) =
   div_
     [style_ [margin "20px"]]
-    [ gridView grid currentPlayer names isRunning,
-      alertView winner names
+    [ gridView grid currentPlayer pd isRunning,
+      alertView winner pd
     ]
 
-gridView :: Grid -> Player -> PlayerNames -> Bool -> View Model Action
-gridView grid currentPlayer (PlayerNames p1 p2) isRunning =
+gridView :: Grid -> Player -> PlayersData -> Bool -> View Model Action
+gridView grid currentPlayer (PlayersData (PlayerData n c) (PlayerData n' c')) isRunning =
   div_
     [style_ [margin "20px"]]
     [ div_
         [class_ "row justify-content-around align-items-center"]
-        [ h3_ (if currentPlayer == X then [class_ "badge badge-warning"] else []) [text p1],
+        [ h3_ (if currentPlayer == X then [class_ "badge badge-warning"] else []) [text n],
           div_
             [style_ [display "inline-block"]]
             [ div_
@@ -296,7 +310,8 @@ gridView grid currentPlayer (PlayerNames p1 p2) isRunning =
                       cell rowId colId sq isRunning
                 )
             ],
-          h3_ (if currentPlayer == O then [class_ "badge badge-warning"] else []) [text p2]
+          h3_ [] [text (ms (show c'))],
+          h3_ (if currentPlayer == O then [class_ "badge badge-warning"] else []) [text n']
         ]
     ]
   where
@@ -318,8 +333,8 @@ gridView grid currentPlayer (PlayerNames p1 p2) isRunning =
             [text (maybe "" (\sq -> if sq == X then "X" else "O") square)]
         ]
 
-alertView :: Maybe Player -> PlayerNames -> View Model Action
-alertView winner (PlayerNames p1 p2) =
+alertView :: Maybe Player -> PlayersData -> View Model Action
+alertView winner (PlayersData (PlayerData p1 _) (PlayerData p2 _)) =
   div_
     [ class_ "alert alert-warning",
       style_ [textAlign "center"],
