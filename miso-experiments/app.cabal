@@ -11,7 +11,7 @@ library
   import:
     warnings
   exposed-modules:
-    Zipper, Grid, Life, Snake, Todo, TicTacToe
+    Zipper, Grid, Life, Snake, Todo, TicTacToe, Chess
   build-depends:
       base < 5
     , comonad

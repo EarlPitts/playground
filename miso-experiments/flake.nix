@@ -36,18 +36,18 @@
           shell:
           shell.overrideAttrs (drv: {
             buildInputs = drv.buildInputs ++ [
-              haskellPackages.haskell-language-server
+              # haskellPackages.haskell-language-server
               # (pkgs.haskell-language-server.override { supportedGhcVersions = [ "912" ]; })
-              haskellPackages.fourmolu
-              haskellPackages.hlint
+              # haskellPackages.fourmolu
+              # haskellPackages.hlint
               pkgs.chromium
-              pkgs.ghcid
+              # pkgs.ghcid
             ];
           });
       in
       {
         devShells = {
-          default = origShells.hls;
+          default = addPackages origShells.hls;
           typescript = origShells.typescript; # unchanged
           wasm = addPackages origShells.wasm;
           ghcjs = addPackages origShells.ghcjs;
