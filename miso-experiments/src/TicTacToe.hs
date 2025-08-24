@@ -10,7 +10,7 @@ module TicTacToe where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Foldable (asum)
-import Data.List (transpose, sort, find)
+import Data.List (find, sort, transpose)
 import Data.Maybe (isJust, isNothing)
 import GHC.Generics
 import Miso hiding (style_)
@@ -41,6 +41,7 @@ data Stat = Stat PlayersData Player Int deriving (Show, Eq, Generic, FromJSON, T
 type Name = MisoString
 
 data PlayerData = PlayerData Name (Maybe Country) deriving (Show, Eq, Generic, FromJSON, ToJSON)
+
 data PlayersData = PlayersData PlayerData PlayerData deriving (Show, Eq, Generic, FromJSON, ToJSON)
 
 instance ToMisoString Stat where
@@ -56,9 +57,10 @@ data Player
 
 type Grid = [[Maybe Player]]
 
-newtype CountryName = CountryName { common :: String } deriving (Eq, Show, Ord, Generic, FromJSON, ToJSON)
-data Country = Country { name :: CountryName, flag :: String } deriving (Eq, Show, Generic, FromJSON, ToJSON)
-  
+newtype CountryName = CountryName {common :: String} deriving (Eq, Show, Ord, Generic, FromJSON, ToJSON)
+
+data Country = Country {name :: CountryName, flag :: String} deriving (Eq, Show, Generic, FromJSON, ToJSON)
+
 instance Ord Country where
   compare (Country name _) (Country name' _) = compare name name'
 
@@ -268,7 +270,7 @@ newGameView (Model _ _ _ (PlayersData (PlayerData n c) (PlayerData n' c')) isRun
               onChange $ SetCountry c . mkCountry countries
             ]
             ( flip map (common . name <$> countries) $ \option ->
-                option_ [ ] [text $ ms option]
+                option_ [] [text $ ms option]
             ),
           button_
             [ class_ "btn btn-outline-warning",

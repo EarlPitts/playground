@@ -6,12 +6,12 @@ import Control.Monad
 import Data.List
 import qualified Data.Set as S
 import Grid
+import Language.Javascript.JSaddle (jsg, (#))
 import Miso hiding (Off, focus, media_, set, update)
 import Miso.Lens
-import Miso.String (ms, MisoString)
+import Miso.String (MisoString, ms)
 import Miso.Style hiding (filter, ms, position)
 import System.Random
-import Language.Javascript.JSaddle (jsg, (#))
 
 data Dir = U | D | L | R deriving (Show, Eq)
 
