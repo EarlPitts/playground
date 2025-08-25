@@ -56,7 +56,7 @@ initBoard size = fromLists (Prelude.replicate size (Prelude.replicate size Dead)
 life :: App Model Action
 life =
   (component (Model $ initBoard size) updateModel viewModel)
-    { events = pointerEvents,
+    { events = defaultEvents <> pointerEvents,
       styles = [Sheet (sheet size)]
     }
   where
@@ -97,18 +97,18 @@ viewModel (Model grid) =
     [class_ "grid-container"]
     [ div_
         []
-        [button_ [onPointerDown (const Step)] [text "Step"]],
+        [button_ [onClick Step] [text "Step"]],
       div_
         []
-        [button_ [onPointerDown (const Run)] [text "Run"]],
+        [button_ [onClick Run] [text "Run"]],
       div_
         [class_ "container"]
         (uncurry cellView <$> makeCells grid)
     ]
 
 cellView :: Coord -> State -> View Model Action
-cellView c Alive = div_ [class_ "grid-cell-on", onPointerDown (const $ Clicked c)] []
-cellView c Dead = div_ [class_ "grid-cell-off", onPointerDown (const $ Clicked c)] []
+cellView c Alive = div_ [class_ "grid-cell-on", onClick $ Clicked c] []
+cellView c Dead = div_ [class_ "grid-cell-off", onClick $ Clicked c] []
 
 sheet :: Int -> StyleSheet
 sheet size =
