@@ -39,6 +39,7 @@ data Model = Model
     _blacks :: [Piece]
   , _whites :: [Piece]
   , _selected :: Maybe Piece
+  , _currentPlayer :: Color
   }
   deriving (Show, Eq)
 
@@ -51,8 +52,11 @@ whites = lens _whites $ \m v -> m {_whites = v}
 selected :: Lens Model (Maybe Piece)
 selected = lens _selected $ \m v -> m {_selected = v}
 
+player :: Lens Model Color
+player = lens _currentPlayer $ \m v -> m {_currentPlayer = v}
+
 initModel :: Model
-initModel = Model bs ws Nothing
+initModel = Model bs ws Nothing White
   where
     bs = notPawns 0 Black <> pawns 1 Black
     ws = notPawns 7 White <> pawns 6 White
@@ -76,19 +80,26 @@ chessMain =
     }
 
 data Action
-  = Select Piece
-  | Move Piece
+  = Select (Maybe Piece)
+  | Move Piece Position
   deriving (Show)
 
 updateModel :: Action -> Transition Model Action
 updateModel (Select piece) = do
-  selected .= Just piece
+  selected .= piece
   m <- use selected
   io_ $ consoleLog (ms (show m))
-updateModel (Move piece) = do
-  selected .= Just piece
-  m <- use selected
-  io_ $ consoleLog (ms (show m))
+updateModel (Move piece pos) = case pieceColor piece of
+  White -> do
+    whites %= fmap (\p -> if position p == position piece
+                          then (Piece White (pieceType p) pos)
+                          else p)
+    selected .= Nothing
+  Black -> do
+    blacks %= fmap (\p -> if position p == position piece
+                          then (Piece Black (pieceType p) pos)
+                          else p)
+    selected .= Nothing
 
 positions :: [Position]
 positions = [Position r c | r <- [0 .. 7], c <- [0 .. 7]]
@@ -97,7 +108,7 @@ board :: [Piece] -> Position -> Tile
 board ps pos = Tile pos $ find (\(Piece _ _ p) -> p == pos) ps
 
 viewModel :: Model -> View Model Action
-viewModel (Model bs ws sel) =
+viewModel (Model bs ws sel _) =
   div_
     [class_ "grid-container"]
     [ div_
@@ -125,8 +136,8 @@ cellView sel (Tile pos piece) =
       (if (not $ isWhite pos) then " cell-black" else "")
     clickHandler = case (sel, piece) of
       (Nothing, Nothing) -> []
-      (Just s, Nothing) -> [ onClick (Move s) ]
-      (_ ,Just p) -> [ onClick (Select p) ]
+      (Just s, Nothing) -> [ onClick (Move s pos) ]
+      (_, Just p) -> [ onClick (Select (Just p)) ]
 
 sheet :: StyleSheet
 sheet =
