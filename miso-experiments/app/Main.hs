@@ -8,4 +8,4 @@ import TicTacToe
 import Chess
 
 main :: IO ()
-main = run $ startComponent chessMain
+main = run $ startComponent chess

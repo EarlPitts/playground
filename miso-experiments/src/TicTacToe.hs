@@ -18,8 +18,8 @@ import Miso.Lens
 import Miso.String (MisoString, ToMisoString, ms, toMisoString)
 import Miso.Style hiding (ms)
 
-ticTacToeApp :: App Model Action
-ticTacToeApp =
+ticTacToe :: App Model Action
+ticTacToe =
   (component initModel updateModel viewModel)
     { initialAction = Just LoadApp
     }

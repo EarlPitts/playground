@@ -72,8 +72,8 @@ pawns row c =
   (Piece c Pawn) <$>
   (getZipList (Position <$> (ZipList (repeat row)) <*> (ZipList [0..7])))
 
-chessMain :: App Model Action
-chessMain =
+chess :: App Model Action
+chess =
   (component initModel updateModel viewModel)
     {
       styles = [Sheet sheet]

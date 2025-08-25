@@ -76,8 +76,8 @@ every n a sink = do
   win <- jsg ("window" :: MisoString)
   void $ win # ("setInterval" :: MisoString) $ (asyncCallback $ sink a, n)
 
-snakeMain :: App Model Action
-snakeMain =
+snake :: App Model Action
+snake =
   (component (initModel size) updateModel viewModel)
     { events = pointerEvents,
       subs = [
