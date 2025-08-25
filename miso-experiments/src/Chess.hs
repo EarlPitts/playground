@@ -7,7 +7,7 @@ import Data.List
 import qualified Data.Set as S
 import Language.Javascript.JSaddle (jsg, (#))
 import Data.Maybe
-import Miso hiding (Off, focus, media_, set, update)
+import Miso hiding (Off, focus, media_, set, update, Capture)
 import Miso.Lens
 import Miso.String (MisoString, ms)
 import Miso.Style hiding (filter, ms, position, Color)
@@ -82,6 +82,7 @@ chessMain =
 data Action
   = Select (Maybe Piece)
   | Move Piece Position
+  | Capture Piece Piece
   deriving (Show)
 
 updateModel :: Action -> Transition Model Action
@@ -89,17 +90,20 @@ updateModel (Select piece) = do
   selected .= piece
   m <- use selected
   io_ $ consoleLog (ms (show m))
-updateModel (Move piece pos) = case pieceColor piece of
-  White -> do
-    whites %= fmap (\p -> if position p == position piece
-                          then (Piece White (pieceType p) pos)
-                          else p)
-    selected .= Nothing
-  Black -> do
-    blacks %= fmap (\p -> if position p == position piece
-                          then (Piece Black (pieceType p) pos)
-                          else p)
-    selected .= Nothing
+updateModel (Move piece pos) = do
+  case pieceColor piece of
+    White -> whites %= fmap (movePiece piece pos)
+    Black -> blacks %= fmap (movePiece piece pos)
+  selected .= Nothing
+updateModel (Capture p p') = pure ()
+
+-- Either moves it if it's the right one, or
+-- leaves it in place
+movePiece :: Piece -> Position -> Piece -> Piece
+movePiece p pos p' =
+  if position p' == position p
+  then (Piece (pieceColor p') (pieceType p') pos)
+  else p'
 
 positions :: [Position]
 positions = [Position r c | r <- [0 .. 7], c <- [0 .. 7]]
@@ -137,6 +141,7 @@ cellView sel (Tile pos piece) =
     clickHandler = case (sel, piece) of
       (Nothing, Nothing) -> []
       (Just s, Nothing) -> [ onClick (Move s pos) ]
+      (Just s, Just p) -> [ onClick (Capture s p) ]
       (_, Just p) -> [ onClick (Select (Just p)) ]
 
 sheet :: StyleSheet
