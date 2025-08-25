@@ -95,7 +95,11 @@ updateModel (Move piece pos) = do
     White -> whites %= fmap (movePiece piece pos)
     Black -> blacks %= fmap (movePiece piece pos)
   selected .= Nothing
-updateModel (Capture p p') = pure ()
+updateModel (Capture capturer captured) = do
+  case pieceColor capturer of
+    White -> blacks %= delete captured
+    Black -> whites %= delete captured
+  issue (Move capturer (position captured))
 
 -- Either moves it if it's the right one, or
 -- leaves it in place
