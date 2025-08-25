@@ -10,15 +10,29 @@ import Data.Maybe
 import Miso hiding (Off, focus, media_, set, update)
 import Miso.Lens
 import Miso.String (MisoString, ms)
-import Miso.Style hiding (filter, ms, position)
+import Miso.Style hiding (filter, ms, position, Color)
 import Control.Applicative
 
--- data Player = White | Black deriving (Show, Eq, MisoString)
+data Color = White | Black deriving (Show, Eq)
 
 data Position = Position Int Int deriving (Show, Eq)
-data Piece = Piece { pieceType :: PieceType, position :: Position } deriving (Show, Eq)
-data PieceType = Pawn | Rook | Knight | Bishop | Queen | King deriving (Show, Eq)
+data Piece = Piece { pieceColor :: Color, pieceType :: PieceType, position :: Position } deriving (Eq)
+data PieceType = Pawn | Rook | Knight | Bishop | Queen | King deriving Eq
 data Tile = Tile Position (Maybe Piece) deriving (Show, Eq)
+
+instance Show Piece where
+  show (Piece White King _)   = "♔"
+  show (Piece Black King _)   = "♚"
+  show (Piece White Queen _)  = "♕"
+  show (Piece Black Queen _)  = "♛"
+  show (Piece White Rook _)   = "♖"
+  show (Piece Black Rook _)   = "♜"
+  show (Piece White Bishop _) = "♗"
+  show (Piece Black Bishop _) = "♝"
+  show (Piece White Knight _) = "♘"
+  show (Piece Black Knight _) = "♞"
+  show (Piece White Pawn _)   = "♙"
+  show (Piece Black Pawn _)   = "♟"
 
 data Model = Model
   {
@@ -40,18 +54,18 @@ selected = lens _selected $ \m v -> m {_selected = v}
 initModel :: Model
 initModel = Model bs ws Nothing
   where
-    bs = notPawns 0 <> pawns 1
-    ws = notPawns 7 <> pawns 6
+    bs = notPawns 0 Black <> pawns 1 Black
+    ws = notPawns 7 White <> pawns 6 White
 
-notPawns :: Int -> [Piece]
-notPawns row = getZipList $ Piece <$> pieces <*> positions
+notPawns :: Int -> Color -> [Piece]
+notPawns row c = getZipList $ Piece c <$> pieces <*> positions
   where
     positions = (Position <$> (ZipList (repeat row)) <*> (ZipList [0..7]))
     pieces = ZipList [Rook, Knight, Bishop, Queen, King, Bishop, Knight, Rook]
 
-pawns :: Int -> [Piece]
-pawns row =
-  (Piece Pawn) <$>
+pawns :: Int -> Color -> [Piece]
+pawns row c =
+  (Piece c Pawn) <$>
   (getZipList (Position <$> (ZipList (repeat row)) <*> (ZipList [0..7])))
 
 chessMain :: App Model Action
@@ -71,12 +85,16 @@ updateModel (Select piece) = do
   selected .= Just piece
   m <- use selected
   io_ $ consoleLog (ms (show m))
+updateModel (Move piece) = do
+  selected .= Just piece
+  m <- use selected
+  io_ $ consoleLog (ms (show m))
 
 positions :: [Position]
 positions = [Position r c | r <- [0 .. 7], c <- [0 .. 7]]
 
 board :: [Piece] -> Position -> Tile
-board ps pos = Tile pos $ find (\(Piece _ p) -> p == pos) ps
+board ps pos = Tile pos $ find (\(Piece _ _ p) -> p == pos) ps
 
 viewModel :: Model -> View Model Action
 viewModel (Model bs ws sel) =
@@ -94,13 +112,13 @@ isWhite (Position r c) =
 
 isSelected :: Maybe Piece -> Position -> Bool
 isSelected Nothing _ = False
-isSelected (Just (Piece _ pos)) pos' = pos == pos'
+isSelected (Just (Piece _ _ pos)) pos' = pos == pos'
 
 cellView :: Maybe Piece -> Tile -> View Model Action
 cellView sel (Tile pos piece) =
   div_
     ([ class_ classStr ] <> clickHandler)
-    (maybe [] (singleton . text . ms . show . pieceType) piece)
+    (maybe [] (singleton . text . ms . show) piece)
   where
     classStr = "grid-cell" <> 
       (if isSelected sel pos then " cell-selected" else "") <>
@@ -132,7 +150,11 @@ sheet =
         [ border "1px solid #333",
           height "75px",
           width "75px",
-          textAlign "center"
+          boxSizing "border-box",
+          display "flex",
+          alignItems "center",
+          justifyContent "center",
+          fontSize "45px"
         ],
       selector_
         ".cell-black"
