@@ -40,6 +40,7 @@ data Model = Model
   , _whites :: [Piece]
   , _selected :: Maybe Piece
   , _currentPlayer :: Color
+  , _validMoves :: [Position]
   }
   deriving (Show, Eq)
 
@@ -55,8 +56,11 @@ selected = lens _selected $ \m v -> m {_selected = v}
 player :: Lens Model Color
 player = lens _currentPlayer $ \m v -> m {_currentPlayer = v}
 
+validMoves :: Lens Model [Position]
+validMoves = lens _validMoves $ \m v -> m {_validMoves = v}
+
 initModel :: Model
-initModel = Model bs ws Nothing White
+initModel = Model bs ws Nothing White []
   where
     bs = notPawns 0 Black <> pawns 1 Black
     ws = notPawns 7 White <> pawns 6 White
@@ -86,20 +90,59 @@ data Action
   deriving (Show)
 
 updateModel :: Action -> Transition Model Action
-updateModel (Select piece) = do
-  selected .= piece
-  m <- use selected
-  io_ $ consoleLog (ms (show m))
+updateModel (Select Nothing) = pure ()
+updateModel (Select (Just piece)) = do
+  c <- use player
+  when ((pieceColor piece) == c) $ do
+    selected .= Just piece
+    ps <- liftA2 (<>) (use whites) (use blacks)
+    validMoves .= filter (isValid piece ps) positions
 updateModel (Move piece pos) = do
   case pieceColor piece of
     White -> whites %= fmap (movePiece piece pos)
     Black -> blacks %= fmap (movePiece piece pos)
   selected .= Nothing
+  validMoves .= []
+  player %= nextPlayer
 updateModel (Capture capturer captured) = do
   case pieceColor capturer of
     White -> blacks %= delete captured
     Black -> whites %= delete captured
   issue (Move capturer (position captured))
+
+-- TODO do something with this because it looks disgusting
+isValid :: Piece -> [Piece] -> Position -> Bool
+isValid (Piece White Pawn (Position r c)) ps (Position r' c') =
+  if r == 6
+  then ((r' == r - 1) || (r' == r - 2)) && c == c'
+  else r' == r - 1 && c == c'
+isValid (Piece Black Pawn (Position r c)) ps (Position r' c') =
+  if r == 1
+  then ((r' == r + 1) || (r' == r + 2)) && c == c'
+  else r' == r + 1 && c == c'
+  -- TODO diagonal capture
+isValid (Piece col Knight (Position r c)) ps (Position r' c') =
+  r' == r + 2 && c' == c + 1 ||
+  r' == r - 2 && c' == c + 1 ||
+  r' == r + 2 && c' == c - 1 ||
+  r' == r - 2 && c' == c - 1 ||
+  r' == r + 1 && c' == c + 2 ||
+  r' == r - 1 && c' == c + 2 ||
+  r' == r + 1 && c' == c - 2 ||
+  r' == r - 1 && c' == c - 2
+isValid (Piece col Queen (Position r c)) ps (Position r' c') =
+  (r - c) == (r' - c') || (r + c) == (r' + c') ||
+  r == r' || c == c'
+isValid (Piece col King (Position r c)) ps pos'=
+  pos' `elem` (Position <$> [r, succ r, pred r] <*> [c, succ c, pred c])
+isValid (Piece col Rook (Position r c)) ps (Position r' c') =
+  r == r' || c == c'
+isValid (Piece col Bishop (Position r c)) ps (Position r' c') =
+  (r - c) == (r' - c') || (r + c) == (r' + c')
+
+nextPlayer :: Color -> Color
+nextPlayer Black = White
+nextPlayer White = Black
 
 -- Either moves it if it's the right one, or
 -- leaves it in place
@@ -116,12 +159,12 @@ board :: [Piece] -> Position -> Tile
 board ps pos = Tile pos $ find (\(Piece _ _ p) -> p == pos) ps
 
 viewModel :: Model -> View Model Action
-viewModel (Model bs ws sel _) =
+viewModel (Model bs ws sel _ valids) =
   div_
     [class_ "grid-container"]
     [ div_
         [class_ "container"]
-        (cellView sel <$> ((board $ bs <> ws) <$> positions))
+        (cellView sel valids <$> ((board $ bs <> ws) <$> positions))
     ]
 
 isWhite :: Position -> Bool
@@ -133,19 +176,26 @@ isSelected :: Maybe Piece -> Position -> Bool
 isSelected Nothing _ = False
 isSelected (Just (Piece _ _ pos)) pos' = pos == pos'
 
-cellView :: Maybe Piece -> Tile -> View Model Action
-cellView sel (Tile pos piece) =
+cellView :: Maybe Piece -> [Position] -> Tile -> View Model Action
+cellView sel valids (Tile pos piece) =
   div_
     ([ class_ classStr ] <> clickHandler)
     (maybe [] (singleton . text . ms . show) piece)
   where
     classStr = "grid-cell" <> 
       (if isSelected sel pos then " cell-selected" else "") <>
-      (if (not $ isWhite pos) then " cell-black" else "")
+      (if (not $ isWhite pos) then " cell-black" else "") <>
+      (if (pos `elem` valids) then " cell-selected" else "")
     clickHandler = case (sel, piece) of
       (Nothing, Nothing) -> []
-      (Just s, Nothing) -> [ onClick (Move s pos) ]
-      (Just s, Just p) -> [ onClick (Capture s p) ]
+      (Just s, Nothing) -> if pos `elem` valids
+                           then [ onClick (Move s pos) ]
+                           else []
+      (Just s, Just p) -> if (pieceColor s == pieceColor p)
+                          then [ onClick (Select (Just p)) ]
+                          else if pos `elem` valids
+                          then [ onClick (Capture s p) ]
+                          else []
       (_, Just p) -> [ onClick (Select (Just p)) ]
 
 sheet :: StyleSheet
