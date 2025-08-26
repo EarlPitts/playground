@@ -136,7 +136,9 @@ isValid (Piece col Queen (Position r c)) ps (Position r' c') =
 isValid (Piece col King (Position r c)) ps pos'=
   pos' `elem` (Position <$> [r, succ r, pred r] <*> [c, succ c, pred c])
 isValid (Piece col Rook (Position r c)) ps (Position r' c') =
-  r == r' || c == c'
+  (r == r' || c == c') && (not $ any (\(Piece _ _ (Position r'' c'')) ->
+  ((r'' == r) && (abs (c'' - c)) < (abs (c' - c))) ||
+  ((c'' == c) && (abs (r'' - r)) < (abs (r' - r)))) ps)
 isValid (Piece col Bishop (Position r c)) ps (Position r' c') =
   (r - c) == (r' - c') || (r + c) == (r' + c')
 
