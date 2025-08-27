@@ -4,12 +4,9 @@ module Chess where
 
 import Control.Monad
 import Data.List
-import qualified Data.Set as S
-import Language.Javascript.JSaddle (jsg, (#))
-import Data.Maybe
 import Miso hiding (Off, focus, media_, set, update, Capture)
 import Miso.Lens
-import Miso.String (MisoString, ms)
+import Miso.String (ms)
 import Miso.Style hiding (filter, ms, position, Color)
 import Control.Applicative
 
@@ -112,35 +109,96 @@ updateModel (Capture capturer captured) = do
 
 -- TODO do something with this because it looks disgusting
 isValid :: Piece -> [Piece] -> Position -> Bool
+
+-- Pawn
 isValid (Piece White Pawn (Position r c)) ps (Position r' c') =
+  (any (\(Piece col' _ (Position r'' c'')) ->
+    (col' == Black &&
+    r'' == r' && c'' == c' &&
+    (r - 1 == r'' && (c - 1 == c'' || c + 1 == c''))))
+  ps) ||
   if r == 6
-  then ((r' == r - 1) || (r' == r - 2)) && c == c'
-  else r' == r - 1 && c == c'
+  then ((r' == r - 1) || (r' == r - 2)) && c == c' &&
+    (not $ any (\(Piece col' _ (Position r'' c'')) ->
+      (col' == White && r' == r'' && c' == c'') ||
+      (col' == Black && (r - 1 == r'' && c' == c'')))
+    ps)
+  else r' == r - 1 && c == c' &&
+    (not $ any (\(Piece col' _ (Position r'' c'')) ->
+      (col' == White && r' == r'' && c' == c'') ||
+      (col' == Black && (r - 1 == r'' && c' == c'')))
+    ps)
+
 isValid (Piece Black Pawn (Position r c)) ps (Position r' c') =
+  (any (\(Piece col' _ (Position r'' c'')) ->
+    (col' == White &&
+    r'' == r' && c'' == c' &&
+    (r + 1 == r'' && (c - 1 == c'' || c + 1 == c''))))
+  ps) ||
   if r == 1
-  then ((r' == r + 1) || (r' == r + 2)) && c == c'
-  else r' == r + 1 && c == c'
-  -- TODO diagonal capture
-isValid (Piece col Knight (Position r c)) ps (Position r' c') =
-  r' == r + 2 && c' == c + 1 ||
+  then ((r' == r + 1) || (r' == r + 2)) && c == c' &&
+    (not $ any (\(Piece col' _ (Position r'' c'')) ->
+      (col' == Black && r' == r'' && c' == c'') ||
+      (col' == White && (r + 1 == r'' && c' == c'')))
+    ps)
+  else r' == r + 1 && c == c' &&
+    (not $ any (\(Piece col' _ (Position r'' c'')) ->
+      (col' == Black && r' == r'' && c' == c'') ||
+      (col' == White && (r + 1 == r'' && c' == c'')))
+    ps)
+
+-- Knight
+isValid p@(Piece col Knight (Position r c)) ps (Position r' c') =
+  (r' == r + 2 && c' == c + 1 ||
   r' == r - 2 && c' == c + 1 ||
   r' == r + 2 && c' == c - 1 ||
   r' == r - 2 && c' == c - 1 ||
   r' == r + 1 && c' == c + 2 ||
   r' == r - 1 && c' == c + 2 ||
   r' == r + 1 && c' == c - 2 ||
-  r' == r - 1 && c' == c - 2
-isValid (Piece col Queen (Position r c)) ps (Position r' c') =
-  (r - c) == (r' - c') || (r + c) == (r' + c') ||
-  r == r' || c == c'
-isValid (Piece col King (Position r c)) ps pos'=
-  pos' `elem` (Position <$> [r, succ r, pred r] <*> [c, succ c, pred c])
-isValid (Piece col Rook (Position r c)) ps (Position r' c') =
-  (r == r' || c == c') && (not $ any (\(Piece _ _ (Position r'' c'')) ->
-  ((r'' == r) && (abs (c'' - c)) < (abs (c' - c))) ||
-  ((c'' == c) && (abs (r'' - r)) < (abs (r' - r)))) ps)
-isValid (Piece col Bishop (Position r c)) ps (Position r' c') =
-  (r - c) == (r' - c') || (r + c) == (r' + c')
+  r' == r - 1 && c' == c - 2) &&
+  (not $ any (\(Piece col' _ (Position r'' c'')) ->
+    (col == col' && r' == r'' && c' == c''))
+  (delete p ps))
+
+-- Queen
+isValid p@(Piece col Queen (Position r c)) ps (Position r' c') =
+  ((r - c) == (r' - c') || (r + c) == (r' + c') || r == r' || c == c') &&
+  (not $ any (\(Piece col' _ (Position r'' c'')) ->
+    ((((r'' == r && r' == r) && (min c' c) < c'' && (max c' c > c''))) ||
+    (((c'' == c && c' == c) && (min r' r) < r'' && (max r' r > r'')))) ||
+    (((r'' + c'' == r + c && r' + c' == r + c) && (((min (r - c) (r' - c')) < (r'' - c'')) && ((max (r - c) (r' - c')) > (r'' - c''))))) ||
+    (((r'' - c'' == r - c && r' - c' == r - c) && (((min (r + c) (r' + c')) < (r'' + c'')) && ((max (r + c) (r' + c')) > (r'' + c''))))) ||
+    (col == col' && r' == r'' && c' == c''))
+  (delete p ps))
+
+-- King TODO check for king without endless recursion somehow
+isValid p@(Piece col King (Position r c)) ps pos'@(Position r' c') =
+  pos' `elem` (Position <$> [r, succ r, pred r] <*> [c, succ c, pred c]) &&
+  (not $ any (\(Piece col' _ (Position r'' c'')) ->
+    (col == col' && r' == r'' && c' == c''))
+  (delete p ps)) &&
+  (not $ any (\piece -> pos' `elem` (filter (isValid piece ps) positions))
+  (filter (\(Piece col' t _) -> t /= King && col' == (nextPlayer col)) ps))
+
+
+-- Rook
+isValid p@(Piece col Rook (Position r c)) ps (Position r' c') =
+  (r == r' || c == c') &&
+  (not $ any (\(Piece col' _ (Position r'' c'')) ->
+    ((r'' == r && (min c' c) < c'' && (max c' c > c''))) ||
+    ((c'' == c && (min r' r) < r'' && (max r' r > r''))) ||
+    (col == col' && r' == r'' && c' == c''))
+  (delete p ps))
+
+-- Bishop
+isValid p@(Piece col Bishop (Position r c)) ps (Position r' c') =
+  ((r - c) == (r' - c') || (r + c) == (r' + c')) &&
+  (not $ any (\(Piece col' _ (Position r'' c'')) ->
+    ((r'' + c'' == r + c && (((min (r - c) (r' - c')) < (r'' - c'')) && ((max (r - c) (r' - c')) > (r'' - c''))))) ||
+    ((r'' - c'' == r - c && (((min (r + c) (r' + c')) < (r'' + c'')) && ((max (r + c) (r' + c')) > (r'' + c''))))) ||
+    (col == col' && r' == r'' && c' == c''))
+  (delete p ps))
 
 nextPlayer :: Color -> Color
 nextPlayer Black = White
@@ -235,7 +293,7 @@ sheet =
         ],
       selector_
         ".cell-selected"
-        [ border "3px solid #f5da42",
+        [ border "5px solid #FF0000",
           boxSizing "border-box"
         ]
     ]
