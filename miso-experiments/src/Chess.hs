@@ -93,7 +93,7 @@ updateModel (Select (Just piece)) = do
   when ((pieceColor piece) == c) $ do
     selected .= Just piece
     ps <- liftA2 (<>) (use whites) (use blacks)
-    validMoves .= filter (isValid piece ps) positions
+    validMoves .= filter (liftA2 (&&) (not . isCheck c piece ps) (isValid piece ps)) positions
 updateModel (Move piece pos) = do
   case pieceColor piece of
     White -> whites %= fmap (movePiece piece pos)
@@ -107,8 +107,16 @@ updateModel (Capture capturer captured) = do
     Black -> whites %= delete captured
   issue (Move capturer (position captured))
 
+isCheck :: Color -> Piece -> [Piece] -> Position -> Bool
+isCheck c p ps pos = any (\p -> isValid p newPs (position k)) enemyPieces
+  where
+    newPs = filter (\p -> not (pieceColor p == (nextPlayer c) && position p == pos)) (fmap (\p'@(Piece col t _) -> if p == p' then Piece col t pos else p') ps)
+    enemyPieces = filter (\p -> pieceColor p /= c) newPs
+    k = head $ filter (\(Piece c' t _) -> t == King && c' == c) newPs
+
 -- TODO do something with this because it looks disgusting
 isValid :: Piece -> [Piece] -> Position -> Bool
+-- TODO add castling and pawn promotion
 
 -- Pawn
 isValid (Piece White Pawn (Position r c)) ps (Position r' c') =
@@ -121,7 +129,7 @@ isValid (Piece White Pawn (Position r c)) ps (Position r' c') =
   then ((r' == r - 1) || (r' == r - 2)) && c == c' &&
     (not $ any (\(Piece col' _ (Position r'' c'')) ->
       (col' == White && r' == r'' && c' == c'') ||
-      (col' == Black && (r - 1 == r'' && c' == c'')))
+      (col' == Black && ((r - 1 == r'' || r - 2 == r'') && c' == c'')))
     ps)
   else r' == r - 1 && c == c' &&
     (not $ any (\(Piece col' _ (Position r'' c'')) ->
@@ -139,7 +147,7 @@ isValid (Piece Black Pawn (Position r c)) ps (Position r' c') =
   then ((r' == r + 1) || (r' == r + 2)) && c == c' &&
     (not $ any (\(Piece col' _ (Position r'' c'')) ->
       (col' == Black && r' == r'' && c' == c'') ||
-      (col' == White && (r + 1 == r'' && c' == c'')))
+      (col' == White && ((r + 1 == r'' || r + 2 == r'') && c' == c'')))
     ps)
   else r' == r + 1 && c == c' &&
     (not $ any (\(Piece col' _ (Position r'' c'')) ->
@@ -172,15 +180,11 @@ isValid p@(Piece col Queen (Position r c)) ps (Position r' c') =
     (col == col' && r' == r'' && c' == c''))
   (delete p ps))
 
--- King TODO check for king without endless recursion somehow
 isValid p@(Piece col King (Position r c)) ps pos'@(Position r' c') =
   pos' `elem` (Position <$> [r, succ r, pred r] <*> [c, succ c, pred c]) &&
   (not $ any (\(Piece col' _ (Position r'' c'')) ->
     (col == col' && r' == r'' && c' == c''))
-  (delete p ps)) &&
-  (not $ any (\piece -> pos' `elem` (filter (isValid piece ps) positions))
-  (filter (\(Piece col' t _) -> t /= King && col' == (nextPlayer col)) ps))
-
+  (delete p ps))
 
 -- Rook
 isValid p@(Piece col Rook (Position r c)) ps (Position r' c') =
