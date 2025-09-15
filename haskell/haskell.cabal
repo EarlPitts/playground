@@ -1,0 +1,51 @@
+cabal-version: 1.12
+
+name:           haskell
+version:        0.0.0
+build-type:     Simple
+
+library
+  exposed-modules:
+      Algebra.BoolMonoids
+      Algorithms.QuickSort
+      Arrow
+      Bracket
+      CellularAutomata
+      Concurrency.ConcBasics
+      ContravariantFunctor
+      DataStructures.Grid
+      DataStructures.Zipper
+      FoldsCompared
+      GameOfLife
+      MonadTrans
+      Onion
+      OnionWeb
+      Scratch
+      TransVsMTL
+      TypelevelStuff.OpaqueTypes
+      TypelevelStuff.PhantomTypes
+      TypelevelStuff.TypeclassVsRecord
+  hs-source-dirs:
+      src
+  default-extensions:
+      DeriveFunctor
+  build-depends:
+      async
+    , base
+    , bytestring
+    , comonad
+    , containers
+    , exceptions
+    , free
+    , hedis
+    , managed
+    , mtl
+    , random
+    , scotty
+    , sqlite-simple
+    , stm
+    , tasty
+    , text
+    , time
+    , transformers
+  default-language: Haskell2010
