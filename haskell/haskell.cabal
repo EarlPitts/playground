@@ -6,25 +6,25 @@ build-type:     Simple
 
 library
   exposed-modules:
-      Algebra.BoolMonoids
-      Algorithms.QuickSort
-      Arrow
-      Bracket
-      CellularAutomata
-      Concurrency.ConcBasics
-      ContravariantFunctor
-      DataStructures.Grid
-      DataStructures.Zipper
-      FoldsCompared
-      GameOfLife
-      MonadTrans
-      Onion
-      OnionWeb
       Scratch
-      TransVsMTL
-      TypelevelStuff.OpaqueTypes
-      TypelevelStuff.PhantomTypes
-      TypelevelStuff.TypeclassVsRecord
+    , Algebra.BoolMonoids
+    , Algorithms.QuickSort
+    , Arrow
+    , Bracket
+    , CellularAutomata
+    , Concurrency.ConcBasics
+    , ContravariantFunctor
+    , DataStructures.Grid
+    , DataStructures.Zipper
+    , FoldsCompared
+    , GameOfLife
+    , MonadTrans
+    , Onion
+    , OnionWeb
+    , TransVsMTL
+    , TypelevelStuff.OpaqueTypes
+    , TypelevelStuff.PhantomTypes
+    , TypelevelStuff.TypeclassVsRecord
   hs-source-dirs:
       src
   default-extensions:
