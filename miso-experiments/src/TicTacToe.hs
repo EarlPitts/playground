@@ -13,10 +13,14 @@ import Data.Foldable (asum)
 import Data.List (find, sort, transpose)
 import Data.Maybe (isJust, isNothing)
 import GHC.Generics
-import Miso hiding (style_)
+import Miso
 import Miso.Lens
+import Miso.Html.Property
+import Miso.Html.Event
+import Miso.Html.Element hiding (style_)
+import Miso.Fetch
 import Miso.String (MisoString, ToMisoString, ms, toMisoString)
-import Miso.Style hiding (ms)
+import Miso.CSS hiding (ms)
 
 ticTacToe :: App Model Action
 ticTacToe =
@@ -179,7 +183,7 @@ updateModel (SaveStats stats) =
 updateModel (SetFlags countries) = countriesL .= (sort countries)
 updateModel None = pure ()
 updateModel LoadApp = do
-  fetch "https://restcountries.com/v3.1/all?fields=name,flag" "GET" Nothing [] SetFlags (const $ None)
+  getJSON "https://restcountries.com/v3.1/all?fields=name,flag"  [] SetFlags (const $ None)
   io $ do
     maybeStats <- getLocalStorage "stats"
     case maybeStats of
@@ -241,7 +245,7 @@ newGameView (Model _ _ _ (PlayersData (PlayerData n c) (PlayerData n' c')) isRun
   nav_
     [class_ "navbar navbar-light bg-light"]
     [ form
-        [class_ "form-inline", disabled_ isRunning]
+        ([class_ "form-inline"] <> if isRunning then  [ disabled_ ] else [])
         [ input_
             [ class_ "form-control mr-sm-2",
               type_ "text",
@@ -273,11 +277,10 @@ newGameView (Model _ _ _ (PlayersData (PlayerData n c) (PlayerData n' c')) isRun
                 option_ [] [text $ ms option]
             ),
           button_
-            [ class_ "btn btn-outline-warning",
+            ([ class_ "btn btn-outline-warning",
               type_ "button",
-              onClick NewGame,
-              disabled_ $ isRunning
-            ]
+              onClick NewGame
+            ] <> if isRunning then [ disabled_ ] else [])
             [text "New game"]
         ]
     ]
@@ -322,16 +325,16 @@ gridView grid currentPlayer (PlayersData (PlayerData n c) (PlayerData n' c')) is
       div_
         [style_ [width "100px", height "100px"]]
         [ button_
-            [ type_ "button",
+            ([ type_ "button",
               style_
                 [ width "100%",
                   height "100%",
                   fontSize "xxx-large"
                 ],
               class_ "btn btn-outline-secondary",
-              onClick (ClickPlayer rowId colId),
-              disabled_ $ (not isRunning) || isJust square
-            ]
+              onClick (ClickPlayer rowId colId)
+              
+            ] <> if (not isRunning) || isJust square then [ disabled_ ] else [])
             [text (maybe "" (\sq -> if sq == X then "X" else "O") square)]
         ]
 

@@ -19,8 +19,8 @@ library
   build-depends:
       base < 5
     , my-tools
-    , comonad
     , miso
+    , comonad
     , containers
     , random
     , jsaddle
@@ -39,8 +39,8 @@ executable app
     Main.hs
   build-depends:
       base < 5
-      , miso
-      , miso-experiments
+    , miso
+    , miso-experiments
   hs-source-dirs:
     app
   default-language:

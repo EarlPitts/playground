@@ -4,10 +4,13 @@ module Life where
 
 import Grid
 import Control.Comonad
-import Miso hiding (media_, focus)
+import Miso hiding (focus, Coord)
 import Miso.Lens
-import Miso.String (ms, toMisoString, ToMisoString)
-import Miso.Style hiding (ms, filter)
+import Miso.Html.Event
+import Miso.Html.Property
+import Miso.Html.Element
+import Miso.String (ToMisoString)
+import Miso.CSS hiding (ms, filter)
 
 
 type Board = Grid State
@@ -41,7 +44,7 @@ toggle Alive = Dead
 toggle Dead = Alive
 
 toggleCell :: Coord -> Board -> Board
-toggleCell (Coord r c) b = maybe b id (Grid.safeUpdate r c toggle b)
+toggleCell (Coord r c) b = maybe b id (safeUpdate r c toggle b)
 
 glider :: Int -> Board
 glider size = fromLists $ [line1, line2, line3] <> (Prelude.replicate (size - 3) (Prelude.replicate size Dead))

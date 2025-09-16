@@ -7,6 +7,9 @@ module Todo where
 
 import Miso
 import Miso.String (MisoString, ms)
+import Miso.Html.Property hiding (label_)
+import Miso.Html.Event
+import Miso.Html.Element hiding (style_)
 import System.Random
 import Miso.Lens
 import Data.Time.LocalTime

@@ -4,13 +4,16 @@ module Snake where
 
 import Control.Monad
 import Data.List
-import qualified Data.Set as S
+import Data.IntSet (IntSet, member)
 import Grid
 import Language.Javascript.JSaddle (jsg, (#))
-import Miso hiding (Off, focus, media_, set, update)
+import Miso hiding (Off, focus, set, update)
 import Miso.Lens
 import Miso.String (MisoString, ms)
-import Miso.Style hiding (filter, ms, position)
+import Miso.Html.Property
+import Miso.Html.Event
+import Miso.Html.Element
+import Miso.CSS hiding (filter, ms, position)
 import System.Random
 
 type Row = Int
@@ -122,7 +125,7 @@ ticksL = lens _ticks $ \m v -> m {_ticks = v}
 data Action
   = Step
   | GetArrows Arrows
-  | GetKeys (S.Set Int)
+  | GetKeys IntSet
   deriving (Show)
 
 togglePause :: Transition Model Action
@@ -132,7 +135,7 @@ incrTick :: Transition Model Action
 incrTick = ticksL += 1
 
 updateModel :: Action -> Transition Model Action
-updateModel (GetKeys keys) = when (S.member 32 keys) $ togglePause
+updateModel (GetKeys keys) = when (member 32 keys) $ togglePause
 updateModel (GetArrows a) = handleDirChange a
 updateModel Step = use isRunningL >>= (flip when) handleStep
 

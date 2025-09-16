@@ -4,10 +4,12 @@ module Chess where
 
 import Control.Monad
 import Data.List
-import Miso hiding (Off, focus, media_, set, update, Capture)
+import Miso hiding (Off, focus, set, update, Capture)
 import Miso.Lens
-import Miso.String (ms)
-import Miso.Style hiding (filter, ms, position, Color)
+import Miso.Html.Event
+import Miso.Html.Property
+import Miso.Html.Element
+import Miso.CSS hiding (filter, ms, position, Color)
 import Control.Applicative
 
 data Color = White | Black deriving (Show, Eq)
