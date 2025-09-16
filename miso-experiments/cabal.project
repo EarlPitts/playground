@@ -10,6 +10,9 @@ source-repository-package
   tag: 8c4b85e6e1279bec9b66859c54f25209701b8153
   -- branch: master
 
+source-repository-package
+  type: git
+  location: https://github.com/EarlPitts/my-tools
+  branch: master
 
 flags: +template-haskell
-

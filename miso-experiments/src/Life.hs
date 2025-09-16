@@ -41,7 +41,7 @@ toggle Alive = Dead
 toggle Dead = Alive
 
 toggleCell :: Coord -> Board -> Board
-toggleCell (Coord r c) b = maybe b id (Grid.update' r c toggle b)
+toggleCell (Coord r c) b = maybe b id (Grid.safeUpdate r c toggle b)
 
 glider :: Int -> Board
 glider size = fromLists $ [line1, line2, line3] <> (Prelude.replicate (size - 3) (Prelude.replicate size Dead))

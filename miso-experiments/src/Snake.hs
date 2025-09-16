@@ -13,6 +13,11 @@ import Miso.String (MisoString, ms)
 import Miso.Style hiding (filter, ms, position)
 import System.Random
 
+type Row = Int
+type Col = Int
+
+data Position = Position Row Col deriving (Show, Eq)
+
 data Dir = U | D | L | R deriving (Show, Eq)
 
 data Snake = Snake Dir [Position] deriving (Show, Eq)
