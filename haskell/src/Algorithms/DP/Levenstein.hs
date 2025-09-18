@@ -1,7 +1,11 @@
 module Algorithms.DP.Levenstein where
 
 import Control.Monad.State
-import Data.Map as M
+-- import Data.Vector as V hiding (modify, length, minimum)
+
+import Criterion.Main
+import Data.Array as A
+import Data.Map as M hiding ((!))
 
 -- The brute force solution is way too slow
 -- It's basically a ternary tree, so longer
@@ -45,3 +49,36 @@ lev s1 s2 = evalState (go s1 s2) M.empty
               let res = minimum $ succ <$> [subs, del, ins]
               modify $ insert (as, bs) res
               return res
+
+-- Vector of thunks
+-- https://jelv.is/blog/Lazy-Dynamic-Programming/
+lev' :: String -> String -> Int
+lev' a b = d m n
+  where
+    (m, n) = (length a, length b)
+    a' = listArray (1, m) a
+    b' = listArray (1, n) b
+
+    d i 0 = i
+    d 0 j = j
+    d i j
+      | a' ! i == b' ! j = ds ! (i - 1, j - 1)
+      | otherwise =
+          minimum
+            [ ds ! (i - 1, j) + 1,
+              ds ! (i, j - 1) + 1,
+              ds ! (i - 1, j - 1) + 1
+            ]
+
+    ds = listArray bounds [d i j | (i, j) <- range bounds]
+    bounds = ((0, 0), (m, n))
+
+benchmark :: IO ()
+benchmark =
+  defaultMain
+    [ bgroup
+        "levenstein a=fjadsklfjdsalkfjsa b=m,vcxn,v,mncx,mvcxn"
+        [ bench "state memoized" $ whnf (lev "fjadsklfjdsalkfjsa") "m,vcxn,v,mncx,mvcxn",
+          bench "array" $ whnf (lev' "fjadsklfjdsalkfjsa") "m,vcxn,v,mncx,mvcxn"
+        ]
+    ]
