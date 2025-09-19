@@ -11,6 +11,7 @@ library
     , Algorithms.QuickSort
     , Algorithms.DP.Fibo
     , Algorithms.DP.Levenstein
+    , Algorithms.ConstraintSolving
     , Arrow
     , Bracket
     , CellularAutomata
