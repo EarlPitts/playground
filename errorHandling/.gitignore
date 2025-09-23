@@ -1,0 +1,10 @@
+.ammonite
+.bloop/
+.bsp/
+.metals/
+.scala-build/
+project/
+resources/
+target/
+fpinscala
+full-stack-typelevel-demo
