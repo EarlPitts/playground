@@ -28,7 +28,7 @@ libraryDependencies += "com.disneystreaming" %% "weaver-cats" % "0.8.4" % Test
 
 testFrameworks += new TestFramework("weaver.framework.CatsEffect")
 
-scalaVersion := "3.6.4"
+scalaVersion := "3.7.3"
 
 watchTriggeredMessage := ((a, b, c) => None)
 watchStartMessage := ((a, b, c) => None)
