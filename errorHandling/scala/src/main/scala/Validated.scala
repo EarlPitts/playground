@@ -1,7 +1,9 @@
-// Validation Applicative
+package ErrorHandling.Validated
+
 import cats.*
 import cats.implicits.*
 import cats.data.*
+import cats.data.Validated.*
 import cats.effect.*
 import cats.effect.implicits.*
 import UserErr.*
@@ -24,55 +26,53 @@ final case class UserRepository[F[_]: Applicative]():
       age: Int,
       name: String,
       address: String
-  ): F[Either[UserErr, Int]] =
+  ): F[Validated[NonEmptyList[UserErr], Int]] =
     if name == "Janos"
-    then Left(AlreadyInDB).pure
-    else Right(1).pure
+    then Invalid(NonEmptyList.of(AlreadyInDB)).pure
+    else Valid(1).pure
 
 trait UserService[F[_]]:
   def createUser(
       age: Int,
       name: String,
       address: String
-  ): EitherT[F, UserErr, User]
+  ): F[Validated[NonEmptyList[UserErr], User]]
 
 object UserService:
-  def mkUserService[F[_]: Monad](
+  def mkUserService[F[_]: Applicative](
       userRepository: UserRepository[F]
   ): UserService[F] = new UserService[F]:
     def createUser(
         age: Int,
         name: String,
         address: String
-    ): EitherT[F, UserErr, User] =
-      for {
-        _ <- EitherT(validateAge(age).pure)
-        _ <- EitherT(validateName(name).pure)
-        id <- EitherT(
-          userRepository.add(age, name, address)
-        )
-      } yield User(id, age, name, address)
+    ): F[Validated[NonEmptyList[UserErr], User]] =
+      (validateAge(age), validateName(name)).tupled match
+        case Invalid(es) => Invalid(es).pure
+        case Valid((age, name)) =>
+          userRepository
+            .add(age, name, address)
+            .map(_.map(User(_, age, name, address)))
 
     private def validateAge(
         age: Int
-    ): Either[UserErr, Unit] =
+    ): Validated[NonEmptyList[UserErr], Int] =
       if age > 100 || age < 0
-      then Left(InvalidAge)
-      else Right(())
+      then Invalid(NonEmptyList.of(InvalidAge))
+      else Valid(age)
 
     private def validateName(
         name: String
-    ): Either[UserErr, Unit] =
+    ): Validated[NonEmptyList[UserErr], String] =
       if name.size > 10
-      then Left(InvalidName)
-      else Right(())
+      then Invalid(NonEmptyList.of(InvalidName))
+      else Valid(name)
 
 val service =
   UserService.mkUserService[Id](UserRepository())
 
-service
-  .createUser(12, "Bela", "ujpest")
-  .value match {
-  case Right(user)      => user
-  case Left(InvalidAge) => ???
-}
+// service.createUser(
+//   12,
+//   "Janos",
+//   "ujpest"
+// )

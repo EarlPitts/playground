@@ -1,3 +1,5 @@
+package ErrorHandling.MonadThrow
+
 import cats.*
 import cats.implicits.*
 import cats.data.*
@@ -72,9 +74,13 @@ val service =
 // Problem: as IO has Throwable hard-coded into it,
 // you cannot have an instance with your own error type
 
-service
-  .createUser(87, "Janos", "utca utca")
-  .onError {
-    case InvalidName => Right(println("invalid name"))
-    case InvalidAge => Right(println("invalid age"))
-  }
+def makeUser(age: Int, name: String, address: String) =
+  service
+    .createUser(age, name, address)
+    .handleError {
+      case InvalidName => User(1, 2, "3", "4")
+    }
+    // .onError {
+    //   case InvalidName => Right(println("invalid name"))
+    //   case InvalidAge  => Right(println("invalid age"))
+    // }

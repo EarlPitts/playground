@@ -1,3 +1,5 @@
+package ErrorHandling.MonadError
+
 import cats.*
 import cats.implicits.*
 import cats.data.*
@@ -68,11 +70,15 @@ object UserService:
 
 type EitherUserErr[A] = Either[UserErr, A]
 
+// Problem: cannot be used with IO, as it
+// has Throwable hard-coded
+
 val service =
   UserService.mkUserService[EitherUserErr](UserRepository())
 
-service
-  .createUser(87, "Imre", "utca utca")
-  .handleError {
-    case InvalidName => User(2, 88, "Bela", "utca ut")
-  }
+def makeUser(age: Int, name: String, address: String) =
+  service
+    .createUser(87, "Imre", "utca utca")
+    // .handleError {
+    //   case InvalidName => User(2, 88, "Bela", "utca ut")
+    // }

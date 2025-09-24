@@ -1,3 +1,5 @@
+package ErrorHandling.Either
+
 import cats.*
 import cats.implicits.*
 import cats.data.*
@@ -37,28 +39,20 @@ trait UserService[F[_]]:
   ): F[Either[UserErr, User]]
 
 object UserService:
-  def mkUserService[F[_]: Monad](
+  def mkUserService[F[_]: Applicative](
       userRepository: UserRepository[F]
   ): UserService[F] = new UserService[F]:
-    // Problem: Monads don't compose well
     def createUser(
         age: Int,
         name: String,
         address: String
     ): F[Either[UserErr, User]] =
-      validateAge(age) match
-        case Left(e) => Left(e).pure
-        case Right(()) =>
-          validateName(name) match
-            case Left(e) => Left(e).pure
-            case Right(()) =>
-              userRepository
-                .add(age, name, address)
-                .map {
-                  case Left(e) => Left(e)
-                  case Right(id) =>
-                    Right(User(id, age, name, address))
-                }
+      (validateAge(age), validateName(name)).tupled match
+        case Left(es) => Left(es).pure
+        case Right((_, _)) =>
+          userRepository
+            .add(age, name, address)
+            .map(_.map(User(_, age, name, address)))
 
     private def validateAge(
         age: Int
@@ -77,8 +71,9 @@ object UserService:
 val service =
   UserService.mkUserService[Id](UserRepository())
 
-service
-  .createUser(87, "Imre", "utca utca")
-// .handleError { case InvalidName =>
-//   User(2, 88, "Bela", "utca ut")
-// }
+//
+// service
+//   .createUser(87, "Imre", "utca utca")
+// // .handleError { case InvalidName =>
+// //   User(2, 88, "Bela", "utca ut")
+// // }

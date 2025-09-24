@@ -1,7 +1,8 @@
+package ErrorHandling.EitherT
+
 import cats.*
 import cats.implicits.*
 import cats.data.*
-import cats.data.Validated.*
 import cats.effect.*
 import cats.effect.implicits.*
 import UserErr.*
@@ -24,53 +25,55 @@ final case class UserRepository[F[_]: Applicative]():
       age: Int,
       name: String,
       address: String
-  ): F[Validated[NonEmptyList[UserErr], Int]] =
+  ): F[Either[UserErr, Int]] =
     if name == "Janos"
-    then Invalid(NonEmptyList.of(AlreadyInDB)).pure
-    else Valid(1).pure
+    then Left(AlreadyInDB).pure
+    else Right(1).pure
 
 trait UserService[F[_]]:
   def createUser(
       age: Int,
       name: String,
       address: String
-  ): F[Validated[NonEmptyList[UserErr], User]]
+  ): EitherT[F, UserErr, User]
 
 object UserService:
-  def mkUserService[F[_]: Applicative](
+  def mkUserService[F[_]: Monad](
       userRepository: UserRepository[F]
   ): UserService[F] = new UserService[F]:
     def createUser(
         age: Int,
         name: String,
         address: String
-    ): F[Validated[NonEmptyList[UserErr], User]] =
-      (validateAge(age), validateName(name)).tupled match
-        case Invalid(es) => Invalid(es).pure
-        case Valid((age, name)) =>
-          userRepository
-            .add(age, name, address)
-            .map(_.map(User(_, age, name, address)))
+    ): EitherT[F, UserErr, User] =
+      for {
+        _ <- EitherT(validateAge(age).pure)
+        _ <- EitherT(validateName(name).pure)
+        id <- EitherT(
+          userRepository.add(age, name, address)
+        )
+      } yield User(id, age, name, address)
 
     private def validateAge(
         age: Int
-    ): Validated[NonEmptyList[UserErr], Int] =
+    ): Either[UserErr, Unit] =
       if age > 100 || age < 0
-      then Invalid(NonEmptyList.of(InvalidAge))
-      else Valid(age)
+      then Left(InvalidAge)
+      else Right(())
 
     private def validateName(
         name: String
-    ): Validated[NonEmptyList[UserErr], String] =
+    ): Either[UserErr, Unit] =
       if name.size > 10
-      then Invalid(NonEmptyList.of(InvalidName))
-      else Valid(name)
+      then Left(InvalidName)
+      else Right(())
 
 val service =
   UserService.mkUserService[Id](UserRepository())
-
-service.createUser(
-  12,
-  "Janos",
-  "ujpest"
-)
+//
+// service
+//   .createUser(12, "Bela", "ujpest")
+//   .value match {
+//   case Right(user)      => user
+//   case Left(InvalidAge) => ???
+// }

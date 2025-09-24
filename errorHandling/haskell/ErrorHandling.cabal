@@ -1,0 +1,29 @@
+cabal-version:   3.0
+name:            ErrorHandling
+version:         0.1.0.0
+build-type:      Simple
+
+common warnings
+    ghc-options: -Wall
+
+library
+    import:           warnings
+    exposed-modules: 
+        MonadError
+      , MyLib
+    build-depends:
+        base
+      , mtl
+    hs-source-dirs:   src
+    default-language: Haskell2010
+
+test-suite ErrorHandling-test
+    import:           warnings
+    default-language: Haskell2010
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Main.hs
+    build-depends:
+        base
+      , hunit
+      , ErrorHandling
