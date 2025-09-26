@@ -1,4 +1,9 @@
 module Main (main) where
 
+import MonadThrowSuite
+import ValidateSuite
+
 main :: IO ()
-main = putStrLn "Test suite not yet implemented."
+main = do
+  MonadThrowSuite.tests
+  ValidateSuite.tests

@@ -55,8 +55,14 @@ validateName name =
 service :: UserService (ExceptT UserErr IO)
 service = mkUserService mkUserRepoService
 
+service' :: UserService (Except UserErr)
+service' = mkUserService mkUserRepoService
+
 mkUser :: Int -> String -> String -> ExceptT UserErr IO User
 mkUser = createUser service
+
+mkUser' :: Int -> String -> String -> Except UserErr User
+mkUser' = createUser service'
 
 handler :: UserErr -> ExceptT UserErr IO ()
 handler InvalidAge = liftIO $ putStrLn "bajvan"
@@ -66,3 +72,6 @@ f = catchError (void (mkUser 120 "Name" "Address")) handler
 
 f' :: ExceptT UserErr IO ()
 f' = void (mkUser 120 "Name" "Address")
+
+f'' :: Except UserErr ()
+f'' = void (mkUser' 90 "Name" "Address")
