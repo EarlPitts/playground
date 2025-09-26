@@ -68,17 +68,15 @@ object UserService:
       then InvalidName.raiseError
       else ().pure
 
-type EitherUserErr[A] = Either[UserErr, A]
-
-// Problem: cannot be used with IO, as it
-// has Throwable hard-coded
+// type EitherUserErr[A] = Either[UserErr, A]
+type EitherUserErr[A] = EitherT[IO, UserErr, A]
 
 val service =
   UserService.mkUserService[EitherUserErr](UserRepository())
 
 def makeUser(age: Int, name: String, address: String) =
   service
-    .createUser(87, "Imre", "utca utca")
+    .createUser(age, name, address)
     // .handleError {
     //   case InvalidName => User(2, 88, "Bela", "utca ut")
     // }

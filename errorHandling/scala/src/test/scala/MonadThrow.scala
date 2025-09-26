@@ -4,7 +4,6 @@ import cats.effect._
 import ErrorHandling.MonadThrow.*
 import ErrorHandling.MonadThrow.UserThrowable.*
 
-// Suites must be "objects" for them to be picked by the framework
 object MonadThrowSuite extends FunSuite {
 
   val address = "address"

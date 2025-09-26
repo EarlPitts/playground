@@ -20,7 +20,7 @@ enum UserThrowable extends Throwable:
   case InvalidAge
   case InvalidName
 
-final case class UserRepository[F[_]: MonadThrow]():
+final case class UserRepository[F[_]: Sync]():
   def add(
       age: Int,
       name: String,
@@ -28,7 +28,7 @@ final case class UserRepository[F[_]: MonadThrow]():
   ): F[Int] =
     if name == "Janos"
     then AlreadyInDB.raiseError
-    else 1.pure
+    else Sync[F].blocking(println("Adding to DB...")) >> 1.pure
 
 trait UserService[F[_]]:
   def createUser(
@@ -69,17 +69,14 @@ object UserService:
 type EitherThrow[A] = Either[Throwable, A]
 
 val service =
-  UserService.mkUserService[EitherThrow](UserRepository())
-
-// Problem: as IO has Throwable hard-coded into it,
-// you cannot have an instance with your own error type
+  UserService.mkUserService[IO](UserRepository())
 
 def makeUser(age: Int, name: String, address: String) =
   service
     .createUser(age, name, address)
-    .handleError {
-      case InvalidName => User(1, 2, "3", "4")
-    }
+    // .handleError {
+    //   case InvalidName => User(1, 2, "3", "4")
+    // }
     // .onError {
     //   case InvalidName => Right(println("invalid name"))
     //   case InvalidAge  => Right(println("invalid age"))
