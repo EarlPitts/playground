@@ -87,3 +87,14 @@ fraction :: [Int] -> Float
 fraction = foldr f 0
   where
     f n acc = (acc + fromIntegral n) / 10.0
+
+-- function composition is associative
+-- so these are the same,
+-- but the first one is tail-call recursive
+apply :: Int -> (a -> a) -> a -> a
+apply 0 _ = id
+apply n f = apply (n-1) f . f
+
+apply' :: Int -> (a -> a) -> a -> a
+apply' 0 _ = id
+apply' n f = f . apply (n-1) f
