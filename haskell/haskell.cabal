@@ -45,6 +45,7 @@ library
     , free
     , hedis
     , managed
+    , network
     , mtl
     , random
     , scotty
