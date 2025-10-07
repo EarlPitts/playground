@@ -24,6 +24,7 @@ library
     , FoldsCompared
     , GameOfLife
     , MonadTrans
+    , Networking.EchoServer
     , Onion
     , OnionWeb
     , TransVsMTL
