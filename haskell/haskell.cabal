@@ -38,7 +38,8 @@ library
   default-extensions:
     DeriveFunctor
   build-depends:
-      async
+      ansi-terminal
+    , async
     , base
     , bytestring
     , comonad
