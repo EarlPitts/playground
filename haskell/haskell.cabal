@@ -25,6 +25,7 @@ library
     , GameOfLife
     , MonadTrans
     , Networking.EchoServer
+    , Networking.ChatServer
     , Onion
     , OnionWeb
     , TransVsMTL
