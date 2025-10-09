@@ -18,6 +18,7 @@ library
     , Bracket
     , CellularAutomata
     , Concurrency.ConcBasics
+    , Concurrency.BankAccount
     , ContravariantFunctor
     , DataStructures.Grid
     , DataStructures.Zipper
