@@ -8,6 +8,7 @@ library
   exposed-modules:
       Scratch
     , Algebra.BoolMonoids
+    , Algebra.MonadPlus
     , Algebra.KleisliEndo
     , Algorithms.Basics
     , Algorithms.QuickSort
