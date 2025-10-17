@@ -19,7 +19,7 @@ import Prelude hiding (log)
 type Server = TVar [Socket] -> Socket -> Int -> IO ()
 
 main :: IO ()
-main = runTCPServer Nothing "3000" echo
+main = runTCPServer Nothing "3000" chat
 
 debugMode :: Bool
 debugMode = True
@@ -34,8 +34,8 @@ sendMessage :: Int -> S.ByteString -> Socket -> [Socket] -> IO ()
 sendMessage n msg s socks =
   traverse_ (flip sendAll (mkMsg n msg)) (filter ((/=) s) socks)
 
-echo :: Server
-echo sockets s n = do
+chat :: Server
+chat sockets s n = do
   log "waiting for message..."
   msg <- recv s 1024
   log $ "message received from socket " <> show s
@@ -44,7 +44,7 @@ echo sockets s n = do
     log $ "got socket list" <> show socks
     sendMessage n msg s socks
     log "sent message to all sockets"
-    echo sockets s n
+    chat sockets s n
 
 runTCPServer :: Maybe HostName -> ServiceName -> Server -> IO a
 runTCPServer mhost port server = do
