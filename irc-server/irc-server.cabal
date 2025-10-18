@@ -12,6 +12,9 @@ library
     import:           warnings
     exposed-modules: 
         IRCServer
+      , ClientMsg
+      , ServerMsg
+      , Types
     build-depends:    
         base ^>=4.20.2.0
       , stm
@@ -28,7 +31,6 @@ executable irc-server
     build-depends:
         base ^>=4.20.2.0
       , irc-server
-
     hs-source-dirs:   app
     default-language: Haskell2010
 
@@ -41,6 +43,5 @@ test-suite irc-server-test
     build-depends:
         base ^>=4.20.2.0
       , irc-server
-      , hunit
-      , quickcheck
-
+      , hspec
+      , QuickCheck
