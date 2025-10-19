@@ -10,3 +10,4 @@ type Host = String
 type ServerName = String
 
 type RealName = String
+type Channel = String

@@ -11,6 +11,7 @@ data ClientMsg
   | Nick NickName
   | NewUser UserName Host ServerName RealName
   | Ping Host
+  | Join Channel
   | Quit
   deriving (Show, Eq)
 
@@ -18,10 +19,13 @@ data ClientMsg
 -- pMsgs = pClientMsg `sepEndBy` crlf
 
 pClientMsg :: Parser ClientMsg
-pClientMsg = pUser <|> pNick <|> pPing <|> pQuit
+pClientMsg = pUser <|> pNick <|> pPing <|> pQuit <|> pJoin
 
 pPing :: Parser ClientMsg
 pPing = Ping <$> (string "PING " *> many notSpace)
+
+pJoin :: Parser ClientMsg
+pJoin = Join <$> (string "JOIN " *> many notSpace)
 
 pQuit :: Parser ClientMsg
 pQuit = const Quit <$> (string "QUIT " *> many anyChar)

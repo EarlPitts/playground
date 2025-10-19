@@ -12,15 +12,14 @@ import Control.Monad.Loops
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as C8
 import Data.Foldable
+import Data.List
 import qualified Data.List.NonEmpty as NE
 import Debug.Trace
 import Network.Socket
 import Network.Socket.ByteString (recv, sendAll)
 import ServerMsg
-import Text.Parsec
 import Types
 import Prelude hiding (log)
-import Data.List
 
 data User = User
   { userName :: UserName,
@@ -36,6 +35,19 @@ type Server = User -> TVar [User] -> IO ()
 
 debugMode :: Bool
 debugMode = True
+
+irc :: Server
+irc u us = do
+  log $ "waiting for " <> nickName u <> "'s messages..."
+  msg <- recv (userSocket u) 1024
+  log $ "message received from " <> nickName u <> ": " <> (show msg)
+  unless (S.null msg) $ do
+    case getClientMsg msg of
+      Left err -> log (show msg) >> log (show err) >> irc u us
+      Right Quit -> log "removing user" >> (atomically $ removeUser u us)
+      Right cMsg -> do
+        sendAll (userSocket u) (C8.pack $ show $ mkReply cMsg)
+        irc u us
 
 log :: String -> IO ()
 log = when debugMode . putStrLn . ("[DEBUG] " <>)
@@ -63,22 +75,28 @@ welcome (User userName nickName hostName _ _ sock) = do
 
 mkReply :: ClientMsg -> ServerMsg
 mkReply (Ping _) = Pong
+mkReply (Join _) = undefined
 
 removeUser :: User -> TVar [User] -> STM ()
 removeUser u us = modifyTVar us (\users -> delete u users)
 
-irc :: Server
-irc u us = do
-  log $ "waiting for " <> nickName u <> "'s messages..."
-  msg <- recv (userSocket u) 1024
-  log $ "message received from " <> nickName u <> ": " <> (show msg)
-  unless (S.null msg) $ do
-    case getClientMsg msg of
-      Left err -> log (show msg) >> log (show err) >> irc u us
-      Right Quit -> log "removing user" >> (atomically $ removeUser u us)
-      Right cMsg -> do
-        sendAll (userSocket u) (C8.pack $ show $ mkReply cMsg)
-        irc u us
+handleNewConnection :: Socket -> TVar [User] -> Server -> IO ()
+handleNewConnection conn users server = do
+  log "accepted connection"
+  us <- readTVarIO users
+  log "read users"
+  newUser <- acceptUser conn us
+  log "new user accepted"
+  log (show newUser)
+  case newUser of
+    Nothing -> pure ()
+    Just u -> do
+      welcome u
+      atomically $ writeTVar users (u : us)
+      log "added user to list"
+      log $ "current users: " <> (show $ u : us)
+      void $ forkFinally (server u users) (const $ (log "closing connection" >> gracefulClose conn 5000))
+
 
 runTCPServer :: Maybe HostName -> ServiceName -> Server -> IO a
 runTCPServer mhost port server = do
@@ -102,18 +120,5 @@ runTCPServer mhost port server = do
         return sock
     loop users sock =
       forever $
-        E.bracketOnError (accept sock) (close . fst) $ \(conn, _peer) -> do
-          log "accepted connection"
-          us <- readTVarIO users
-          log "read users"
-          newUser <- acceptUser conn us
-          log "new user accepted"
-          log (show newUser)
-          case newUser of
-            Nothing -> pure ()
-            Just u -> do
-              welcome u
-              atomically $ writeTVar users (u : us)
-              log "added user to list"
-              log $ "current users: " <> (show $ u : us)
-              void $ forkFinally (server u users) (const $ (log "closing connection" >> gracefulClose conn 5000))
+        E.bracketOnError (accept sock) (close . fst) $
+          \(conn, _peer) -> handleNewConnection conn users server
