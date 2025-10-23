@@ -8,55 +8,49 @@ import Control.Concurrent
 import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Control.Monad
-import Control.Monad.Loops
+import Control.Monad.Except
+import Control.Monad.Identity
+import Control.Monad.State
+import Control.Monad.Trans.Maybe
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as C8
 import Data.Foldable
-import Data.List
 import qualified Data.List.NonEmpty as NE
 import Debug.Trace
 import Network.Socket
 import Network.Socket.ByteString (recv, sendAll)
 import ServerMsg
 import Types
+import UserService
 import Prelude hiding (log)
 
-data User = User
-  { userName :: UserName,
-    nickName :: NickName,
-    host :: Host,
-    serverName :: ServerName,
-    realName :: RealName,
-    userSocket :: Socket
-  }
-  deriving (Show, Eq)
-
-type Server = User -> TVar [User] -> IO ()
+type Server = User -> UserService -> IO ()
 
 debugMode :: Bool
 debugMode = True
 
+rightToMaybe :: Either a b -> Maybe b
+rightToMaybe (Right b) = Just b
+rightToMaybe (Left _) = Nothing
+
 irc :: Server
-irc u us = do
+irc u userService = do
   log $ "waiting for " <> nickName u <> "'s messages..."
   msg <- recv (userSocket u) 1024
   log $ "message received from " <> nickName u <> ": " <> (show msg)
   unless (S.null msg) $ do
     case getClientMsg msg of
-      Left err -> log (show msg) >> log (show err) >> irc u us
-      Right Quit -> log "removing user" >> (atomically $ removeUser u us)
+      Left err -> log (show msg) >> log (show err) >> irc u userService
+      Right Quit -> log "removing user" >> removeUser userService (nickName u)
       Right cMsg -> do
         sendAll (userSocket u) (C8.pack $ show $ mkReply cMsg)
-        irc u us
+        irc u userService
 
 log :: String -> IO ()
 log = when debugMode . putStrLn . ("[DEBUG] " <>)
 
-isNickTaken :: NickName -> [User] -> Bool
-isNickTaken nick users = nick `elem` (nickName <$> users)
-
-acceptUser :: Socket -> [User] -> IO (Maybe User)
-acceptUser sock users = go Nothing
+acceptUser :: UserService -> Socket -> IO (Maybe User) -- TODO error handling
+acceptUser userService sock = go Nothing
   where
     go nick = do
       msg <- recv sock 1024
@@ -65,8 +59,19 @@ acceptUser sock users = go Nothing
         then return Nothing
         else do
           case getClientMsg msg of
-            Right (Nick nickName) -> if isNickTaken nickName users then undefined >> return Nothing else go (Just nickName)
-            Right (NewUser u h s r) -> return $ fmap (\n -> User u n h s r sock) nick
+            Right (Nick n) -> do
+              u <- runMaybeT $ findUser userService n
+              case u of
+                Nothing -> go (Just n)
+                Just _ -> undefined
+            Right (NewUser u h s r) ->
+              traverse
+                ( \n -> do
+                    (Right result) <- runExceptT $ addUser userService (User u n h s r sock) -- TODO handle error
+                    return result
+                )
+                nick
+            Right _ -> undefined
             Left err -> log (show msg) >> log (show err) >> go Nothing
 
 welcome :: User -> IO ()
@@ -77,32 +82,29 @@ mkReply :: ClientMsg -> ServerMsg
 mkReply (Ping _) = Pong
 mkReply (Join _) = undefined
 
-removeUser :: User -> TVar [User] -> STM ()
-removeUser u us = modifyTVar us (\users -> delete u users)
-
-handleNewConnection :: Socket -> TVar [User] -> Server -> IO ()
-handleNewConnection conn users server = do
+handleNewConnection :: UserService -> Socket -> Server -> IO ()
+handleNewConnection userService conn server = do
   log "accepted connection"
-  us <- readTVarIO users
   log "read users"
-  newUser <- acceptUser conn us
+  newUser <- acceptUser userService conn
   log "new user accepted"
   log (show newUser)
   case newUser of
     Nothing -> pure ()
     Just u -> do
       welcome u
-      atomically $ writeTVar users (u : us)
+      _ <- runExceptT $ addUser userService u -- TODO handle error
       log "added user to list"
-      log $ "current users: " <> (show $ u : us)
-      void $ forkFinally (server u users) (const $ (log "closing connection" >> gracefulClose conn 5000))
-
+      log "current users: " >> log . show <$> getUsers userService
+      void $ forkFinally (server u userService) (const $ (log "closing connection" >> gracefulClose conn 5000))
 
 runTCPServer :: Maybe HostName -> ServiceName -> Server -> IO a
 runTCPServer mhost port server = do
   addr <- resolve
   users <- newTVarIO ([] :: [User])
-  E.bracket (open addr) close (loop users)
+  let storage = mkUserStorage users
+  let userService = mkUserService storage
+  E.bracket (open addr) close (loop userService)
   where
     resolve = do
       let hints =
@@ -118,7 +120,7 @@ runTCPServer mhost port server = do
         bind sock $ addrAddress addr
         listen sock 1024
         return sock
-    loop users sock =
+    loop userService sock =
       forever $
         E.bracketOnError (accept sock) (close . fst) $
-          \(conn, _peer) -> handleNewConnection conn users server
+          \(conn, _peer) -> handleNewConnection userService conn server

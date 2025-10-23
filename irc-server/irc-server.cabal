@@ -13,11 +13,15 @@ library
     exposed-modules: 
         IRCServer
       , ClientMsg
+      , UserService
       , ServerMsg
       , Types
     build-depends:    
         base ^>=4.20.2.0
       , stm
+      , mtl
+      , transformers
+      , concurrency
       , monad-loops
       , network
       , parsec
