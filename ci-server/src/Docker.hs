@@ -7,6 +7,18 @@ import qualified Socket
 
 newtype Image = Image Text deriving (Show, Eq)
 
+newtype ContainerID = ContainerID Text deriving (Show, Eq, Generic, Aeson.FromJSON)
+
+data ContainerCreateResponse = ContainerCreateResponse
+  { containerId :: ContainerID,
+    warning :: [Text]
+  }
+  deriving (Show, Eq)
+
+instance Aeson.FromJSON ContainerCreateResponse where
+  parseJSON = Aeson.withObject "ContrainerCreateResponse" $ \obj ->
+    ContainerCreateResponse <$> obj Aeson..: "Id" <*> obj Aeson..: "Warnings"
+
 imageToText :: Docker.Image -> Text
 imageToText (Docker.Image t) = t
 
@@ -17,7 +29,7 @@ data ContainerCreateOptions = ContainerCreateOptions
   }
   deriving (Show, Eq)
 
-createContainer :: ContainerCreateOptions -> IO ()
+createContainer :: ContainerCreateOptions -> IO ContainerCreateResponse
 createContainer options = do
   manager <- Socket.newManager "/run/docker.sock"
 
@@ -39,3 +51,7 @@ createContainer options = do
 
   res <- HTTP.httpBS request
   traceShowIO $ res
+  let respBody = HTTP.getResponseBody res
+  case Aeson.eitherDecodeStrict respBody of
+    Left err -> error err
+    Right resp -> pure resp
