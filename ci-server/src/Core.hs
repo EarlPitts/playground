@@ -2,11 +2,10 @@
 
 module Core where
 
+import qualified Docker
 import RIO
 import RIO.List as L
 import qualified RIO.Map as M
-import qualified RIO.NonEmpty as NE
-import qualified RIO.NonEmpty.Partial as NE.P
 
 data Pipeline = Pipeline
   { steps :: NonEmpty Step
@@ -16,7 +15,7 @@ data Pipeline = Pipeline
 data Step = Step
   { name :: StepName,
     commands :: NonEmpty Text,
-    image :: Image
+    image :: Docker.Image
   }
   deriving (Show, Eq)
 
@@ -45,25 +44,18 @@ data BuildRunningState = BuildRunningState
 
 data StepResult
   = StepSucceeded
-  | StepFailed ContainerExitCode
+  | StepFailed Docker.ContainerExitCode
   deriving (Show, Eq)
 
-newtype ContainerExitCode = ContainerExitCode Int deriving (Show, Eq)
-
-newtype Image = Image Text deriving (Show, Eq)
-
 newtype StepName = StepName Text deriving (Show, Eq, Ord)
-
-imageToText :: Image -> Text
-imageToText (Image t) = t
 
 stepNameToText :: StepName -> Text
 stepNameToText (StepName t) = t
 
-exitCodeToInt :: ContainerExitCode -> Int
-exitCodeToInt (ContainerExitCode code) = code
+exitCodeToInt :: Docker.ContainerExitCode -> Int
+exitCodeToInt (Docker.ContainerExitCode code) = code
 
-exitCodeToStepResult :: ContainerExitCode -> StepResult
+exitCodeToStepResult :: Docker.ContainerExitCode -> StepResult
 exitCodeToStepResult code =
   if exitCodeToInt code == 0
     then StepSucceeded
@@ -88,7 +80,7 @@ progress build =
       Left result -> pure build {state = BuildFinished result}
       Right s -> pure build {state = BuildRunning (BuildRunningState s.name)}
     BuildRunning state -> do
-      let code = ContainerExitCode 0
+      let code = Docker.ContainerExitCode 0
           result = exitCodeToStepResult code
           updatedSteps = M.insert state.step result build.completedSteps
       pure build {state = BuildReady, completedSteps = updatedSteps}

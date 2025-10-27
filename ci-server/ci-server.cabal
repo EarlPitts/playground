@@ -12,7 +12,9 @@ common warnings
 library
     import:           warnings
     exposed-modules: 
-      Core
+        Core
+      , Docker
+      , Socket
     build-depends:   
         base
       , aeson
