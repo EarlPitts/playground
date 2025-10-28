@@ -73,12 +73,15 @@ buildHasNextStep build =
     nextStep = L.find f build.pipeline.steps
     f step = not $ M.member step.name build.completedSteps
 
-progress :: Build -> IO Build
-progress build =
+progress :: Docker.Service -> Build -> IO Build
+progress docker build =
   case build.state of
     BuildReady -> case buildHasNextStep build of
       Left result -> pure build {state = BuildFinished result}
-      Right s -> pure build {state = BuildRunning (BuildRunningState s.name)}
+      Right s -> do
+        cid <- docker.createContainer (Docker.ContainerCreateOptions (s.image))
+        docker.startContainer cid
+        pure $ build {state = BuildRunning (BuildRunningState s.name)}
     BuildRunning state -> do
       let code = Docker.ContainerExitCode 0
           result = exitCodeToStepResult code

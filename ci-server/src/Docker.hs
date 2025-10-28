@@ -3,8 +3,20 @@ module Docker where
 import Data.Aeson ((.:))
 import qualified Data.Aeson as Aeson
 import qualified Network.HTTP.Simple as HTTP
+import Network.HTTP.Client.Conduit (Manager)
 import RIO
-import qualified Socket
+
+data Service = Service
+  { createContainer :: ContainerCreateOptions -> IO ContainerID,
+    startContainer :: ContainerID -> IO ()
+  }
+
+mkService :: Manager -> Service
+mkService manager =
+  Service
+    { createContainer = createContainer_ manager,
+      startContainer = startContainer_ manager
+    }
 
 newtype Image = Image Text deriving (Show, Eq)
 
@@ -27,10 +39,8 @@ data ContainerCreateOptions = ContainerCreateOptions
   }
   deriving (Show, Eq)
 
-createContainer :: ContainerCreateOptions -> IO ContainerID
-createContainer options = do
-  manager <- Socket.newManager "/run/docker.sock"
-
+createContainer_ :: Manager -> ContainerCreateOptions -> IO ContainerID
+createContainer_ manager options = do
   let image = imageToText options.image
       body =
         Aeson.object
@@ -50,10 +60,8 @@ createContainer options = do
   res <- HTTP.httpBS request
   parseResponse res
 
-startContainer :: ContainerID -> IO ()
-startContainer cid = do
-  manager <- Socket.newManager "/run/docker.sock"
-
+startContainer_ :: Manager -> ContainerID -> IO ()
+startContainer_ manager cid = do
   let path = "/v1.40/containers/" <> containerIdToText cid <> "/start"
       request =
         HTTP.defaultRequest

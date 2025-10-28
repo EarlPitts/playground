@@ -1,12 +1,12 @@
 module Main (main) where
 
-import Control.Monad
 import Core
 import qualified Docker
 import RIO
+import qualified RIO.Map as Map
 import RIO.NonEmpty.Partial as NE.P
+import qualified Socket
 import Test.Hspec
-import Prelude (putStrLn)
 
 mkStep :: Text -> [Text] -> Text -> Step
 mkStep name commands image =
@@ -36,19 +36,34 @@ testBuild =
       completedSteps = mempty
     }
 
-main :: IO ()
-main = hspec $ do
-  describe "progress" $ do
-    it "Finishes build when all steps ran" $ do
-      let stepNum = length testSteps
-      bs <- (f (8) testBuild)
-      traverse_ (putStrLn . show) bs
-      after <- foldM (\build _ -> progress build) testBuild [0 .. (stepNum * 2)]
-      after.state `shouldBe` (BuildFinished BuildSucceeded)
+runBuild :: Docker.Service -> Build -> IO Build
+runBuild docker build = do
+  newBuild <- Core.progress docker build
+  case newBuild.state of
+    BuildFinished _ -> pure newBuild
+    _ -> do
+      threadDelay (1 * 1000 * 1000) -- We don't want to DoS the docker daemon
+      runBuild docker newBuild
 
-f :: Int -> Build -> IO [Build]
-f 0 _ = pure []
-f n b = do
-  curr <- progress b
-  next <- f (n - 1) curr
-  pure (b : next)
+dockerStub :: Docker.Service
+dockerStub =
+  Docker.Service
+    { Docker.createContainer = \_ -> pure (Docker.ContainerID mempty),
+      Docker.startContainer = \_ -> pure ()
+    }
+
+main :: IO ()
+main = do
+  -- manager <- Socket.newManager "/run/docker.sock"
+  -- let docker = Docker.mkService manager
+
+  hspec do
+    describe "CI" do
+      it "should run a build (success)" do
+        testRunSuccess dockerStub
+
+testRunSuccess :: Docker.Service -> IO ()
+testRunSuccess docker = do
+  result <- runBuild docker testBuild
+  result.state `shouldBe` BuildFinished BuildSucceeded
+  Map.elems result.completedSteps `shouldBe` [StepSucceeded, StepSucceeded]
