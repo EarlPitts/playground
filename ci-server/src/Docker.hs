@@ -1,5 +1,6 @@
 module Docker where
 
+import Data.Aeson ((.:))
 import qualified Data.Aeson as Aeson
 import qualified Network.HTTP.Simple as HTTP
 import RIO
@@ -7,20 +8,17 @@ import qualified Socket
 
 newtype Image = Image Text deriving (Show, Eq)
 
-newtype ContainerID = ContainerID Text deriving (Show, Eq, Generic, Aeson.FromJSON)
+newtype ContainerID = ContainerID Text deriving (Show, Eq)
 
-data ContainerCreateResponse = ContainerCreateResponse
-  { containerId :: ContainerID,
-    warning :: [Text]
-  }
-  deriving (Show, Eq)
-
-instance Aeson.FromJSON ContainerCreateResponse where
-  parseJSON = Aeson.withObject "ContrainerCreateResponse" $ \obj ->
-    ContainerCreateResponse <$> obj Aeson..: "Id" <*> obj Aeson..: "Warnings"
+instance Aeson.FromJSON ContainerID where
+  parseJSON = Aeson.withObject "ContrainerID" $ \obj ->
+    ContainerID <$> obj .: "Id"
 
 imageToText :: Docker.Image -> Text
 imageToText (Docker.Image t) = t
+
+containerIdToText :: ContainerID -> Text
+containerIdToText (ContainerID i) = i
 
 newtype ContainerExitCode = ContainerExitCode Int deriving (Show, Eq)
 
@@ -29,7 +27,7 @@ data ContainerCreateOptions = ContainerCreateOptions
   }
   deriving (Show, Eq)
 
-createContainer :: ContainerCreateOptions -> IO ContainerCreateResponse
+createContainer :: ContainerCreateOptions -> IO ContainerID
 createContainer options = do
   manager <- Socket.newManager "/run/docker.sock"
 
@@ -50,8 +48,23 @@ createContainer options = do
           & HTTP.setRequestBodyJSON body
 
   res <- HTTP.httpBS request
-  traceShowIO $ res
-  let respBody = HTTP.getResponseBody res
-  case Aeson.eitherDecodeStrict respBody of
-    Left err -> error err
-    Right resp -> pure resp
+  parseResponse res
+
+startContainer :: ContainerID -> IO ()
+startContainer cid = do
+  manager <- Socket.newManager "/run/docker.sock"
+
+  let path = "/v1.40/containers/" <> containerIdToText cid <> "/start"
+      request =
+        HTTP.defaultRequest
+          & HTTP.setRequestMethod "POST"
+          & HTTP.setRequestManager manager
+          & HTTP.setRequestPath (encodeUtf8 path)
+
+  void $ HTTP.httpBS request
+
+parseResponse :: (Aeson.FromJSON a) => HTTP.Response ByteString -> IO a
+parseResponse res = do
+  case Aeson.eitherDecodeStrict (HTTP.getResponseBody res) of
+    Left e -> throwString e
+    Right status -> pure status
