@@ -15,6 +15,7 @@ library
         Core
       , Docker
       , Socket
+      , Runner
     build-depends:   
         base
       , aeson
@@ -69,6 +70,7 @@ test-suite ci-server-test
       , ci-server
       , rio
       , hspec
+      , typed-process
     default-extensions:
         DeriveFunctor
       , OverloadedRecordDot

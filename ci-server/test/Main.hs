@@ -5,7 +5,8 @@ import qualified Docker
 import RIO
 import qualified RIO.Map as Map
 import RIO.NonEmpty.Partial as NE.P
-import qualified Socket
+import qualified Runner
+import qualified System.Process.Typed as Process
 import Test.Hspec
 
 mkStep :: Text -> [Text] -> Text -> Step
@@ -19,32 +20,6 @@ mkStep name commands image =
 mkPipeline :: [Step] -> Pipeline
 mkPipeline steps = Pipeline {steps = NE.P.fromList steps}
 
-testSteps :: [Step]
-testSteps =
-  [ mkStep "First step" ["date"] "ubuntu",
-    mkStep "Second step" ["uname"] "ubuntu"
-  ]
-
-testPipeline :: Pipeline
-testPipeline = mkPipeline testSteps
-
-testBuild :: Build
-testBuild =
-  Build
-    { pipeline = testPipeline,
-      state = BuildReady,
-      completedSteps = mempty
-    }
-
-runBuild :: Docker.Service -> Build -> IO Build
-runBuild docker build = do
-  newBuild <- Core.progress docker build
-  case newBuild.state of
-    BuildFinished _ -> pure newBuild
-    _ -> do
-      threadDelay (1 * 1000 * 1000) -- We don't want to DoS the docker daemon
-      runBuild docker newBuild
-
 dockerStub :: Docker.Service
 dockerStub =
   Docker.Service
@@ -52,18 +27,35 @@ dockerStub =
       Docker.startContainer = \_ -> pure ()
     }
 
+runnerStub :: Runner.Service
+runnerStub =
+  Runner.Service
+    { Runner.runBuild = \build -> pure $ build {state = BuildFinished BuildSucceeded},
+      Runner.prepareBuild = \pipeline -> pure $ Build {pipeline = pipeline, state = BuildReady, completedSteps = mempty}
+    }
+
+cleanupDocker :: IO ()
+cleanupDocker = void $ Process.runProcess "docker rm -f $(docker ps -aq --filter \"label=ci\")"
+
 main :: IO ()
 main = do
-  -- manager <- Socket.newManager "/run/docker.sock"
-  -- let docker = Docker.mkService manager
-
   hspec do
-    describe "CI" do
-      it "should run a build (success)" do
-        testRunSuccess dockerStub
+    docker <- runIO Docker.mkService
+    let runner = Runner.mkService docker
 
-testRunSuccess :: Docker.Service -> IO ()
-testRunSuccess docker = do
-  result <- runBuild docker testBuild
+    beforeAll cleanupDocker $ describe "CI" do
+      it "should run a build (success)" do
+        testRunSuccess runner
+
+testRunSuccess :: Runner.Service -> IO ()
+testRunSuccess runner = do
+  build <-
+    runner.prepareBuild
+      $ mkPipeline
+        [ mkStep "First step" ["date"] "ubuntu",
+          mkStep "Second step" ["uname"] "ubuntu"
+        ]
+  result <- runner.runBuild build
+
   result.state `shouldBe` BuildFinished BuildSucceeded
   Map.elems result.completedSteps `shouldBe` [StepSucceeded, StepSucceeded]
