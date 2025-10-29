@@ -24,7 +24,8 @@ dockerStub :: Docker.Service
 dockerStub =
   Docker.Service
     { Docker.createContainer = \_ -> pure (Docker.ContainerID mempty),
-      Docker.startContainer = \_ -> pure ()
+      Docker.startContainer = \_ -> pure (),
+      Docker.containerStatus = \_ -> pure $ Docker.ContainerFinished (Docker.ContainerExitCode 0)
     }
 
 runnerStub :: Runner.Service
@@ -46,6 +47,8 @@ main = do
     beforeAll cleanupDocker $ describe "CI" do
       it "should run a build (success)" do
         testRunSuccess runner
+      it "should run a build (failure)" do
+        testRunFailure runner
 
 testRunSuccess :: Runner.Service -> IO ()
 testRunSuccess runner = do
@@ -59,3 +62,11 @@ testRunSuccess runner = do
 
   result.state `shouldBe` BuildFinished BuildSucceeded
   Map.elems result.completedSteps `shouldBe` [StepSucceeded, StepSucceeded]
+
+testRunFailure :: Runner.Service -> IO ()
+testRunFailure runner = do
+  build <- runner.prepareBuild $ mkPipeline [mkStep "should fail" ["exit", "1"] "ubuntu"]
+  result <- runner.runBuild build
+
+  result.state `shouldBe` BuildFinished BuildFailed
+  Map.elems result.completedSteps `shouldBe` [StepFailed (Docker.ContainerExitCode 1)]

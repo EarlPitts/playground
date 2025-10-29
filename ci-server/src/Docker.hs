@@ -2,23 +2,31 @@ module Docker where
 
 import Data.Aeson ((.:))
 import qualified Data.Aeson as Aeson
-import Network.HTTP.Client.Conduit (Manager)
 import qualified Network.HTTP.Simple as HTTP
 import RIO
 import qualified Socket
 
+type RequestBuilder = Text -> HTTP.Request
+
 data Service = Service
   { createContainer :: ContainerCreateOptions -> IO ContainerID,
-    startContainer :: ContainerID -> IO ()
+    startContainer :: ContainerID -> IO (),
+    containerStatus :: ContainerID -> IO ContainerStatus
   }
 
 mkService :: IO Service
 mkService = do
   manager <- Socket.newManager "/run/docker.sock"
+  let mkReq = \path ->
+        HTTP.defaultRequest
+          & HTTP.setRequestManager manager
+          & HTTP.setRequestPath (encodeUtf8 $ "/v1.40/containers/" <> path)
+
   pure
     $ Service
-      { createContainer = createContainer_ manager,
-        startContainer = startContainer_ manager
+      { createContainer = createContainer_ mkReq,
+        startContainer = startContainer_ mkReq,
+        containerStatus = containerStatus_ mkReq
       }
 
 newtype Image = Image Text deriving (Show, Eq)
@@ -28,6 +36,12 @@ newtype ContainerID = ContainerID Text deriving (Show, Eq)
 instance Aeson.FromJSON ContainerID where
   parseJSON = Aeson.withObject "ContrainerID" $ \obj ->
     ContainerID <$> obj .: "Id"
+
+data ContainerStatus
+  = ContainerRunning
+  | ContainerFinished ContainerExitCode
+  | ContainerOther Text
+  deriving (Show, Eq)
 
 imageToText :: Docker.Image -> Text
 imageToText (Docker.Image t) = t
@@ -42,8 +56,8 @@ data ContainerCreateOptions = ContainerCreateOptions
   }
   deriving (Show, Eq)
 
-createContainer_ :: Manager -> ContainerCreateOptions -> IO ContainerID
-createContainer_ manager options = do
+createContainer_ :: RequestBuilder -> ContainerCreateOptions -> IO ContainerID
+createContainer_ mkReq options = do
   let image = imageToText options.image
       body =
         Aeson.object
@@ -54,25 +68,28 @@ createContainer_ manager options = do
             ("EntryPoint", Aeson.toJSON [Aeson.String "/bin/sh", "-c"])
           ]
       request =
-        HTTP.defaultRequest
+        mkReq "create"
           & HTTP.setRequestMethod "POST"
-          & HTTP.setRequestManager manager
-          & HTTP.setRequestPath "/v1.40/containers/create"
           & HTTP.setRequestBodyJSON body
 
   res <- HTTP.httpBS request
   parseResponse res
 
-startContainer_ :: Manager -> ContainerID -> IO ()
-startContainer_ manager cid = do
-  let path = "/v1.40/containers/" <> containerIdToText cid <> "/start"
-      request =
-        HTTP.defaultRequest
-          & HTTP.setRequestMethod "POST"
-          & HTTP.setRequestManager manager
-          & HTTP.setRequestPath (encodeUtf8 path)
+startContainer_ :: RequestBuilder -> ContainerID -> IO ()
+startContainer_ mkReq cid = do
+  let path = containerIdToText cid <> "/start"
+      request = mkReq path & HTTP.setRequestMethod "POST"
 
   void $ HTTP.httpBS request
+
+containerStatus_ :: RequestBuilder -> ContainerID -> IO ContainerStatus
+containerStatus_ mkReq cid = do
+  let path = containerIdToText cid <> "/status"
+      request = mkReq path & HTTP.setRequestMethod "GET"
+
+  resp <- HTTP.httpBS request
+  traceShowIO resp
+  undefined
 
 parseResponse :: (Aeson.FromJSON a) => HTTP.Response ByteString -> IO a
 parseResponse res = do
