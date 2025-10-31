@@ -39,9 +39,20 @@ instance Aeson.FromJSON ContainerID where
 
 data ContainerStatus
   = ContainerRunning
-  | ContainerFinished ContainerExitCode
+  | ContainerExited ContainerExitCode
   | ContainerOther Text
   deriving (Show, Eq)
+
+instance Aeson.FromJSON ContainerStatus where
+  parseJSON = Aeson.withObject "ContainerStatus" $ \obj -> do
+    state <- obj .: "State"
+    status <- state .: "Status"
+    case status of
+      "exited" -> do
+        code <- state .: "ExitCode"
+        pure $ ContainerExited (ContainerExitCode code)
+      "running" -> pure ContainerRunning
+      _ -> pure $ ContainerOther status
 
 imageToText :: Docker.Image -> Text
 imageToText (Docker.Image t) = t
@@ -52,7 +63,8 @@ containerIdToText (ContainerID i) = i
 newtype ContainerExitCode = ContainerExitCode Int deriving (Show, Eq)
 
 data ContainerCreateOptions = ContainerCreateOptions
-  { image :: Image
+  { image :: Image,
+    script :: Text
   }
   deriving (Show, Eq)
 
@@ -64,8 +76,9 @@ createContainer_ mkReq options = do
           [ ("Image", Aeson.toJSON image),
             ("Tty", Aeson.toJSON True),
             ("Labels", Aeson.object [("ci", "")]),
-            ("Cmd", "echo hello"),
-            ("EntryPoint", Aeson.toJSON [Aeson.String "/bin/sh", "-c"])
+            ("EntryPoint", Aeson.toJSON [Aeson.String "/bin/sh", "-c"]),
+            ("Cmd", "echo \"$CI_SCRIPT\" | /bin/sh"),
+            ("Env", Aeson.toJSON ["CI_SCRIPT=" <> options.script])
           ]
       request =
         mkReq "create"
@@ -78,18 +91,19 @@ createContainer_ mkReq options = do
 startContainer_ :: RequestBuilder -> ContainerID -> IO ()
 startContainer_ mkReq cid = do
   let path = containerIdToText cid <> "/start"
-      request = mkReq path & HTTP.setRequestMethod "POST"
+      request =
+        mkReq path
+          & HTTP.setRequestMethod "POST"
 
   void $ HTTP.httpBS request
 
 containerStatus_ :: RequestBuilder -> ContainerID -> IO ContainerStatus
 containerStatus_ mkReq cid = do
-  let path = containerIdToText cid <> "/status"
+  let path = containerIdToText cid <> "/json"
       request = mkReq path & HTTP.setRequestMethod "GET"
 
   resp <- HTTP.httpBS request
-  traceShowIO resp
-  undefined
+  parseResponse resp
 
 parseResponse :: (Aeson.FromJSON a) => HTTP.Response ByteString -> IO a
 parseResponse res = do

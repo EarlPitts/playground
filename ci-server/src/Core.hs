@@ -6,6 +6,8 @@ import qualified Docker
 import RIO
 import RIO.List as L
 import qualified RIO.Map as M
+import qualified RIO.NonEmpty as NE
+import qualified RIO.Text as Text
 
 data Pipeline = Pipeline
   { steps :: NonEmpty Step
@@ -81,7 +83,8 @@ progress docker build =
     BuildReady -> case buildHasNextStep build of
       Left result -> pure build {state = BuildFinished result}
       Right s -> do
-        cid <- docker.createContainer (Docker.ContainerCreateOptions (s.image))
+        let script = Text.unlines $ ["set -ex"] <> NE.toList s.commands
+        cid <- docker.createContainer (Docker.ContainerCreateOptions (s.image) script)
         docker.startContainer cid
         let runState = BuildRunningState {step = s.name, container = cid}
         pure $ build {state = BuildRunning runState}
@@ -90,7 +93,7 @@ progress docker build =
 
       case status of
         Docker.ContainerRunning -> pure build
-        Docker.ContainerFinished code -> do
+        Docker.ContainerExited code -> do
           let result = exitCodeToStepResult code
               updatedSteps = M.insert state.step result build.completedSteps
           pure build {state = BuildReady, completedSteps = updatedSteps}
