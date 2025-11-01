@@ -11,7 +11,8 @@ type RequestBuilder = Text -> HTTP.Request
 data Service = Service
   { createContainer :: ContainerCreateOptions -> IO ContainerID,
     startContainer :: ContainerID -> IO (),
-    containerStatus :: ContainerID -> IO ContainerStatus
+    containerStatus :: ContainerID -> IO ContainerStatus,
+    createVolume :: IO Volume
   }
 
 mkService :: IO Service
@@ -20,14 +21,21 @@ mkService = do
   let mkReq = \path ->
         HTTP.defaultRequest
           & HTTP.setRequestManager manager
-          & HTTP.setRequestPath (encodeUtf8 $ "/v1.40/containers/" <> path)
+          & HTTP.setRequestPath (encodeUtf8 $ "/v1.40/" <> path)
 
   pure
     $ Service
       { createContainer = createContainer_ mkReq,
         startContainer = startContainer_ mkReq,
-        containerStatus = containerStatus_ mkReq
+        containerStatus = containerStatus_ mkReq,
+        createVolume = createVolume_ mkReq
       }
+
+newtype Volume = Volume Text deriving (Show, Eq)
+
+instance Aeson.FromJSON Volume where
+  parseJSON = Aeson.withObject "CreateVolume" $ \obj ->
+    Volume <$> obj .: "Name"
 
 newtype Image = Image Text deriving (Show, Eq)
 
@@ -81,7 +89,7 @@ createContainer_ mkReq options = do
             ("Env", Aeson.toJSON ["CI_SCRIPT=" <> options.script])
           ]
       request =
-        mkReq "create"
+        mkReq "containers/create"
           & HTTP.setRequestMethod "POST"
           & HTTP.setRequestBodyJSON body
 
@@ -90,7 +98,7 @@ createContainer_ mkReq options = do
 
 startContainer_ :: RequestBuilder -> ContainerID -> IO ()
 startContainer_ mkReq cid = do
-  let path = containerIdToText cid <> "/start"
+  let path = "containers/" <> containerIdToText cid <> "/start"
       request =
         mkReq path
           & HTTP.setRequestMethod "POST"
@@ -99,11 +107,22 @@ startContainer_ mkReq cid = do
 
 containerStatus_ :: RequestBuilder -> ContainerID -> IO ContainerStatus
 containerStatus_ mkReq cid = do
-  let path = containerIdToText cid <> "/json"
+  let path = "containers/" <> containerIdToText cid <> "/json"
       request = mkReq path & HTTP.setRequestMethod "GET"
 
   resp <- HTTP.httpBS request
   parseResponse resp
+
+createVolume_ :: RequestBuilder -> IO Volume
+createVolume_ mkReq = do
+  let body = Aeson.object [("Labels", Aeson.object [("ci", "")])]
+      request =
+        mkReq "volumes/create"
+          & HTTP.setRequestMethod "POST"
+          & HTTP.setRequestBodyJSON body
+
+  res <- HTTP.httpBS request
+  parseResponse res
 
 parseResponse :: (Aeson.FromJSON a) => HTTP.Response ByteString -> IO a
 parseResponse res = do

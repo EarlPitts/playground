@@ -25,14 +25,23 @@ dockerStub =
   Docker.Service
     { Docker.createContainer = \_ -> pure (Docker.ContainerID mempty),
       Docker.startContainer = \_ -> pure (),
-      Docker.containerStatus = \_ -> pure $ Docker.ContainerExited (Docker.ContainerExitCode 0)
+      Docker.containerStatus = \_ -> pure $ Docker.ContainerExited (Docker.ContainerExitCode 0),
+      Docker.createVolume = pure $ Docker.Volume ""
     }
 
 runnerStub :: Runner.Service
 runnerStub =
   Runner.Service
-    { Runner.runBuild = \build -> pure $ build {state = BuildFinished BuildSucceeded},
-      Runner.prepareBuild = \pipeline -> pure $ Build {pipeline = pipeline, state = BuildReady, completedSteps = mempty}
+    { Runner.runBuild = \build ->
+        pure $ build {state = BuildFinished BuildSucceeded},
+      Runner.prepareBuild = \pipeline ->
+        pure
+          $ Build
+            { pipeline = pipeline,
+              state = BuildReady,
+              completedSteps = mempty,
+              volume = Docker.Volume ""
+            }
     }
 
 cleanupDocker :: IO ()
@@ -49,6 +58,8 @@ main = do
         testRunSuccess runner
       it "should run a build (failure)" do
         testRunFailure runner
+      it "should find the created file" do
+        f runner
 
 testRunSuccess :: Runner.Service -> IO ()
 testRunSuccess runner = do
@@ -70,3 +81,16 @@ testRunFailure runner = do
 
   result.state `shouldBe` BuildFinished BuildFailed
   Map.elems result.completedSteps `shouldBe` [StepFailed (Docker.ContainerExitCode 1)]
+
+f :: Runner.Service -> IO ()
+f runner = do
+  build <-
+    runner.prepareBuild
+      $ mkPipeline
+        [ mkStep "First step" ["touch testfile"] "ubuntu",
+          mkStep "Second step" ["[ -f testfile ]"] "ubuntu"
+        ]
+  result <- runner.runBuild build
+
+  result.state `shouldBe` BuildFinished BuildSucceeded
+  Map.elems result.completedSteps `shouldBe` [StepSucceeded, StepSucceeded]

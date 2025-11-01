@@ -13,7 +13,7 @@ mkService :: Docker.Service -> Service
 mkService docker =
   Service
     { runBuild = runBuild_ docker,
-      prepareBuild = prepareBuild_
+      prepareBuild = prepareBuild_ docker
     }
 
 runBuild_ :: Docker.Service -> Build -> IO Build
@@ -22,14 +22,16 @@ runBuild_ docker build = do
   case newBuild.state of
     BuildFinished _ -> pure newBuild
     _ -> do
-      threadDelay (1 * 1000 * 1000) -- We don't want to DoS the docker daemon
+      threadDelay (1 * 1000) -- We don't want to DoS the docker daemon
       runBuild_ docker newBuild
 
-prepareBuild_ :: Pipeline -> IO Build
-prepareBuild_ pipeline =
+prepareBuild_ :: Docker.Service -> Pipeline -> IO Build
+prepareBuild_ docker pipeline = do
+  volume <- docker.createVolume
   pure
     Build
       { pipeline = pipeline,
         state = BuildReady,
-        completedSteps = mempty
+        completedSteps = mempty,
+        volume = volume
       }
