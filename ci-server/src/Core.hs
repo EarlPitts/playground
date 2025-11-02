@@ -8,6 +8,7 @@ import RIO.List as L
 import qualified RIO.Map as M
 import qualified RIO.NonEmpty as NE
 import qualified RIO.Text as Text
+import qualified Data.Time.Clock.POSIX as Time
 
 data Pipeline = Pipeline
   { steps :: NonEmpty Step
@@ -85,7 +86,9 @@ progress docker build =
       Left result -> pure build {state = BuildFinished result}
       Right s -> do
         let script = Text.unlines $ ["set -ex"] <> NE.toList s.commands
-        cid <- docker.createContainer (Docker.ContainerCreateOptions (s.image) script)
+        cid <-
+          docker.createContainer
+            $ Docker.ContainerCreateOptions (s.image) script build.volume
         docker.startContainer cid
         let runState = BuildRunningState {step = s.name, container = cid}
         pure $ build {state = BuildRunning runState}

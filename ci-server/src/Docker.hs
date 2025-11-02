@@ -65,6 +65,9 @@ instance Aeson.FromJSON ContainerStatus where
 imageToText :: Docker.Image -> Text
 imageToText (Docker.Image t) = t
 
+volumeToText :: Docker.Volume -> Text
+volumeToText (Docker.Volume t) = t
+
 containerIdToText :: ContainerID -> Text
 containerIdToText (ContainerID i) = i
 
@@ -72,13 +75,15 @@ newtype ContainerExitCode = ContainerExitCode Int deriving (Show, Eq)
 
 data ContainerCreateOptions = ContainerCreateOptions
   { image :: Image,
-    script :: Text
+    script :: Text,
+    volume :: Volume
   }
   deriving (Show, Eq)
 
 createContainer_ :: RequestBuilder -> ContainerCreateOptions -> IO ContainerID
 createContainer_ mkReq options = do
   let image = imageToText options.image
+      bind = volumeToText options.volume <> ":/app"
       body =
         Aeson.object
           [ ("Image", Aeson.toJSON image),
@@ -86,6 +91,8 @@ createContainer_ mkReq options = do
             ("Labels", Aeson.object [("ci", "")]),
             ("EntryPoint", Aeson.toJSON [Aeson.String "/bin/sh", "-c"]),
             ("Cmd", "echo \"$CI_SCRIPT\" | /bin/sh"),
+            ("HostConfig", Aeson.object [("Binds", Aeson.toJSON [bind])]),
+            ("WorkingDir", "/app"),
             ("Env", Aeson.toJSON ["CI_SCRIPT=" <> options.script])
           ]
       request =

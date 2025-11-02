@@ -22,7 +22,7 @@ runBuild_ docker build = do
   case newBuild.state of
     BuildFinished _ -> pure newBuild
     _ -> do
-      threadDelay (1 * 1000) -- We don't want to DoS the docker daemon
+      threadDelay (100 * 1000) -- We don't want to DoS the docker daemon
       runBuild_ docker newBuild
 
 prepareBuild_ :: Docker.Service -> Pipeline -> IO Build

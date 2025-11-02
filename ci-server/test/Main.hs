@@ -45,7 +45,9 @@ runnerStub =
     }
 
 cleanupDocker :: IO ()
-cleanupDocker = void $ Process.runProcess "docker rm -f $(docker ps -aq --filter \"label=ci\")"
+cleanupDocker = void $ do
+  Process.runProcess "docker rm -f $(docker ps -aq --filter \"label=ci\")"
+  Process.runProcess "docker volume rm -f $(docker volume ls -q --filter \"label=ci\")"
 
 main :: IO ()
 main = do
@@ -58,8 +60,8 @@ main = do
         testRunSuccess runner
       it "should run a build (failure)" do
         testRunFailure runner
-      it "should find the created file" do
-        f runner
+      it "should share workspace between steps" do
+        testSharedWorkspace runner
 
 testRunSuccess :: Runner.Service -> IO ()
 testRunSuccess runner = do
@@ -82,13 +84,13 @@ testRunFailure runner = do
   result.state `shouldBe` BuildFinished BuildFailed
   Map.elems result.completedSteps `shouldBe` [StepFailed (Docker.ContainerExitCode 1)]
 
-f :: Runner.Service -> IO ()
-f runner = do
+testSharedWorkspace :: Runner.Service -> IO ()
+testSharedWorkspace runner = do
   build <-
     runner.prepareBuild
       $ mkPipeline
-        [ mkStep "First step" ["touch testfile"] "ubuntu",
-          mkStep "Second step" ["[ -f testfile ]"] "ubuntu"
+        [ mkStep "Create file" ["touch testfile"] "ubuntu",
+          mkStep "Read file" ["[ -f testfile ]"] "ubuntu"
         ]
   result <- runner.runBuild build
 
