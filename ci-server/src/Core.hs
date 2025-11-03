@@ -1,14 +1,15 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 module Core where
 
+import qualified Data.Time.Clock.POSIX as Time
 import qualified Docker
 import RIO
 import RIO.List as L
 import qualified RIO.Map as M
 import qualified RIO.NonEmpty as NE
 import qualified RIO.Text as Text
-import qualified Data.Time.Clock.POSIX as Time
 
 data Pipeline = Pipeline
   { steps :: NonEmpty Step
@@ -55,6 +56,20 @@ data StepResult
 
 newtype StepName = StepName Text deriving (Show, Eq, Ord)
 
+type LogCollection = Map StepName CollectionStatus
+
+data CollectionStatus
+  = CollectionReady
+  | CollectingLogs Docker.ContainerID Time.POSIXTime
+  | CollectionFinished
+  deriving (Show, Eq)
+
+data Log = Log
+  { output :: ByteString,
+    step :: StepName
+  }
+  deriving (Show, Eq)
+
 stepNameToText :: StepName -> Text
 stepNameToText (StepName t) = t
 
@@ -66,6 +81,63 @@ exitCodeToStepResult code =
   if exitCodeToInt code == 0
     then StepSucceeded
     else StepFailed code
+
+runCollection ::
+  Docker.Service ->
+  Time.POSIXTime ->
+  LogCollection ->
+  IO [Log]
+runCollection docker until collection = do
+  logs <- M.traverseWithKey f collection
+  pure $ concat $ M.elems logs
+  where
+    f step = \case
+      CollectingLogs container from -> do
+        let options =
+              Docker.FetchLogsOptions
+                { container = container,
+                  from = from,
+                  to = until
+                }
+        output <- docker.fetchLogs options
+        pure $ [Log {step = step, output = output}]
+      CollectionReady -> pure []
+      CollectionFinished -> pure []
+
+collectLogs ::
+  Docker.Service ->
+  LogCollection ->
+  Build ->
+  IO (LogCollection, [Log])
+collectLogs docker collection build = do
+  now <- Time.getPOSIXTime
+  logs <- runCollection docker now collection
+  let newCollection = updateLogCollection build.state now collection
+  pure (newCollection, logs)
+
+initLogCollection :: Pipeline -> LogCollection
+initLogCollection pipeline =
+  M.fromList
+    $ NE.toList pipeline.steps
+    <&> \step -> (step.name, CollectionReady)
+
+updateLogCollection :: BuildState -> Time.POSIXTime -> LogCollection -> LogCollection
+updateLogCollection state lastCollection collection =
+  M.mapWithKey f collection
+  where
+    update step since nextState = case state of
+      BuildRunning state ->
+        if state.step == step
+          then CollectingLogs state.container since
+          else nextState
+      _ -> nextState
+    f step = \case
+      CollectionReady ->
+        update step 0 CollectionReady
+      CollectingLogs _ _ ->
+        update step lastCollection CollectionFinished
+      CollectionFinished ->
+        CollectionFinished
 
 buildHasNextStep :: Build -> Either BuildResult Step
 buildHasNextStep build =

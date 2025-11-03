@@ -26,7 +26,8 @@ dockerStub =
     { Docker.createContainer = \_ -> pure (Docker.ContainerID mempty),
       Docker.startContainer = \_ -> pure (),
       Docker.containerStatus = \_ -> pure $ Docker.ContainerExited (Docker.ContainerExitCode 0),
-      Docker.createVolume = pure $ Docker.Volume ""
+      Docker.createVolume = pure $ Docker.Volume "",
+      Docker.fetchLogs = \_ -> pure $ "log"
     }
 
 runnerStub :: Runner.Service
@@ -96,3 +97,17 @@ testSharedWorkspace runner = do
 
   result.state `shouldBe` BuildFinished BuildSucceeded
   Map.elems result.completedSteps `shouldBe` [StepSucceeded, StepSucceeded]
+
+testLogCollection :: IO ()
+testLogCollection runner = do
+  let lc =
+        initLogCollection
+          $ mkPipeline
+            [ mkStep "First step" ["date"] "ubuntu",
+              mkStep "Second step" ["uname"] "ubuntu"
+            ]
+  build <- runner.prepareBuild $ mkPipeline [mkStep "should fail" ["exit 1"] "ubuntu"]
+  result <- runner.runBuild build
+
+  result.state `shouldBe` BuildFinished BuildFailed
+  Map.elems result.completedSteps `shouldBe` [StepFailed (Docker.ContainerExitCode 1)]
