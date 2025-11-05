@@ -158,6 +158,7 @@ progress docker build =
       Left result -> pure build {state = BuildFinished result}
       Right s -> do
         let script = Text.unlines $ ["set -ex"] <> NE.toList s.commands
+        docker.pullImage s.image
         cid <-
           docker.createContainer
             $ Docker.ContainerCreateOptions (s.image) script build.volume

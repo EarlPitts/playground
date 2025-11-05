@@ -14,7 +14,8 @@ data Service = Service
     startContainer :: ContainerID -> IO (),
     containerStatus :: ContainerID -> IO ContainerStatus,
     createVolume :: IO Volume,
-    fetchLogs :: FetchLogsOptions -> IO ByteString
+    fetchLogs :: FetchLogsOptions -> IO ByteString,
+    pullImage :: Image -> IO ()
   }
 
 mkService :: IO Service
@@ -31,7 +32,8 @@ mkService = do
         startContainer = startContainer_ mkReq,
         containerStatus = containerStatus_ mkReq,
         createVolume = createVolume_ mkReq,
-        fetchLogs = fetchLogs_ mkReq
+        fetchLogs = fetchLogs_ mkReq,
+        pullImage = pullImage_ mkReq
       }
 
 newtype Volume = Volume Text deriving (Show, Eq)
@@ -40,7 +42,11 @@ instance Aeson.FromJSON Volume where
   parseJSON = Aeson.withObject "CreateVolume" $ \obj ->
     Volume <$> obj .: "Name"
 
-newtype Image = Image Text deriving (Show, Eq)
+data Image = Image
+  { name :: Text,
+    tag :: Text
+  }
+  deriving (Show, Eq)
 
 newtype ContainerID = ContainerID Text deriving (Show, Eq)
 
@@ -66,7 +72,7 @@ instance Aeson.FromJSON ContainerStatus where
       _ -> pure $ ContainerOther status
 
 imageToText :: Docker.Image -> Text
-imageToText (Docker.Image t) = t
+imageToText (Docker.Image name tag) = name <> ":" <> tag
 
 volumeToText :: Docker.Volume -> Text
 volumeToText (Docker.Volume t) = t
@@ -125,7 +131,7 @@ startContainer_ mkReq cid = do
 containerStatus_ :: RequestBuilder -> ContainerID -> IO ContainerStatus
 containerStatus_ mkReq cid = do
   let path = "containers/" <> containerIdToText cid <> "/json"
-      request = mkReq path & HTTP.setRequestMethod "GET"
+      request = mkReq path
 
   resp <- HTTP.httpBS request
   parseResponse resp
@@ -154,6 +160,20 @@ fetchLogs_ mkReq options = do
 
   resp <- HTTP.httpBS $ mkReq path
   pure $ HTTP.getResponseBody resp
+
+pullImage_ :: RequestBuilder -> Image -> IO ()
+pullImage_ mkReq image = do
+  let path =
+        "/images/create?tag="
+          <> image.tag
+          <> "&fromImage="
+          <> image.name
+
+      request =
+        mkReq path
+          & HTTP.setRequestMethod "POST"
+
+  void $ HTTP.httpBS request
 
 parseResponse :: (Aeson.FromJSON a) => HTTP.Response ByteString -> IO a
 parseResponse res = do

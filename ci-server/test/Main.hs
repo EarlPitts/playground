@@ -16,7 +16,7 @@ mkStep name commands image =
   Step
     { name = StepName name,
       commands = NE.P.fromList commands,
-      image = Docker.Image image
+      image = Docker.Image image "latest"
     }
 
 mkPipeline :: [Step] -> Pipeline
@@ -29,7 +29,8 @@ dockerStub =
       Docker.startContainer = \_ -> pure (),
       Docker.containerStatus = \_ -> pure $ Docker.ContainerExited (Docker.ContainerExitCode 0),
       Docker.createVolume = pure $ Docker.Volume "",
-      Docker.fetchLogs = \_ -> pure $ "log"
+      Docker.fetchLogs = \_ -> pure $ "log",
+      Docker.pullImage = \_ -> pure ()
     }
 
 runnerStub :: Runner.Service
@@ -73,6 +74,8 @@ main = do
         testSharedWorkspace runner
       it "should collect logs" do
         testLogCollection runner
+      it "should pull images" do
+        testPullingImage runner
 
 testRunSuccess :: Runner.Service -> IO ()
 testRunSuccess runner = do
@@ -134,3 +137,15 @@ testLogCollection runner = do
 
   result.state `shouldBe` BuildFinished BuildSucceeded
   Map.elems result.completedSteps `shouldBe` [StepSucceeded, StepSucceeded]
+
+testPullingImage :: Runner.Service -> IO ()
+testPullingImage runner = do
+  Process.runProcess_ "docker rmi -f busybox"
+
+  build <-
+    runner.prepareBuild
+      $ mkPipeline [mkStep "First step" ["date"] "busybox"]
+  result <- runner.runBuild emptyHooks build
+
+  result.state `shouldBe` BuildFinished BuildSucceeded
+  Map.elems result.completedSteps `shouldBe` [StepSucceeded]
