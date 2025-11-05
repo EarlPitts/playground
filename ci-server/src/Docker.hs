@@ -31,7 +31,7 @@ mkService = do
         startContainer = startContainer_ mkReq,
         containerStatus = containerStatus_ mkReq,
         createVolume = createVolume_ mkReq,
-        fetchLogs = undefined -- TODO
+        fetchLogs = fetchLogs_ mkReq
       }
 
 newtype Volume = Volume Text deriving (Show, Eq)
@@ -140,6 +140,20 @@ createVolume_ mkReq = do
 
   res <- HTTP.httpBS request
   parseResponse res
+
+fetchLogs_ :: RequestBuilder -> FetchLogsOptions -> IO ByteString
+fetchLogs_ mkReq options = do
+  let timeStampToText t = tshow (round t :: Int)
+  let path =
+        "containers/"
+          <> containerIdToText options.container
+          <> "/logs?stdout=true&stderr=true&since="
+          <> timeStampToText options.from
+          <> "&until="
+          <> timeStampToText options.to
+
+  resp <- HTTP.httpBS $ mkReq path
+  pure $ HTTP.getResponseBody resp
 
 parseResponse :: (Aeson.FromJSON a) => HTTP.Response ByteString -> IO a
 parseResponse res = do

@@ -3,8 +3,10 @@ module Main (main) where
 import Core
 import qualified Docker
 import RIO
+import qualified RIO.ByteString as BS
 import qualified RIO.Map as Map
 import RIO.NonEmpty.Partial as NE.P
+import qualified RIO.Set as Set
 import qualified Runner
 import qualified System.Process.Typed as Process
 import Test.Hspec
@@ -33,7 +35,7 @@ dockerStub =
 runnerStub :: Runner.Service
 runnerStub =
   Runner.Service
-    { Runner.runBuild = \build ->
+    { Runner.runBuild = \_ build ->
         pure $ build {state = BuildFinished BuildSucceeded},
       Runner.prepareBuild = \pipeline ->
         pure
@@ -43,6 +45,12 @@ runnerStub =
               completedSteps = mempty,
               volume = Docker.Volume ""
             }
+    }
+
+emptyHooks :: Runner.Hooks
+emptyHooks =
+  Runner.Hooks
+    { Runner.logCollected = \_ -> pure ()
     }
 
 cleanupDocker :: IO ()
@@ -63,6 +71,8 @@ main = do
         testRunFailure runner
       it "should share workspace between steps" do
         testSharedWorkspace runner
+      it "should collect logs" do
+        testLogCollection runner
 
 testRunSuccess :: Runner.Service -> IO ()
 testRunSuccess runner = do
@@ -72,7 +82,7 @@ testRunSuccess runner = do
         [ mkStep "First step" ["date"] "ubuntu",
           mkStep "Second step" ["uname"] "ubuntu"
         ]
-  result <- runner.runBuild build
+  result <- runner.runBuild emptyHooks build
 
   result.state `shouldBe` BuildFinished BuildSucceeded
   Map.elems result.completedSteps `shouldBe` [StepSucceeded, StepSucceeded]
@@ -80,7 +90,7 @@ testRunSuccess runner = do
 testRunFailure :: Runner.Service -> IO ()
 testRunFailure runner = do
   build <- runner.prepareBuild $ mkPipeline [mkStep "should fail" ["exit 1"] "ubuntu"]
-  result <- runner.runBuild build
+  result <- runner.runBuild emptyHooks build
 
   result.state `shouldBe` BuildFinished BuildFailed
   Map.elems result.completedSteps `shouldBe` [StepFailed (Docker.ContainerExitCode 1)]
@@ -93,21 +103,34 @@ testSharedWorkspace runner = do
         [ mkStep "Create file" ["touch testfile"] "ubuntu",
           mkStep "Read file" ["[ -f testfile ]"] "ubuntu"
         ]
-  result <- runner.runBuild build
+  result <- runner.runBuild emptyHooks build
 
   result.state `shouldBe` BuildFinished BuildSucceeded
   Map.elems result.completedSteps `shouldBe` [StepSucceeded, StepSucceeded]
 
-testLogCollection :: IO ()
+testLogCollection :: Runner.Service -> IO ()
 testLogCollection runner = do
-  let lc =
-        initLogCollection
-          $ mkPipeline
-            [ mkStep "First step" ["date"] "ubuntu",
-              mkStep "Second step" ["uname"] "ubuntu"
-            ]
-  build <- runner.prepareBuild $ mkPipeline [mkStep "should fail" ["exit 1"] "ubuntu"]
-  result <- runner.runBuild build
+  expected <- newMVar $ Set.fromList ["hello", "world", "Linux"]
 
-  result.state `shouldBe` BuildFinished BuildFailed
-  Map.elems result.completedSteps `shouldBe` [StepFailed (Docker.ContainerExitCode 1)]
+  let onLog :: Log -> IO ()
+      onLog log = do
+        remaining <- readMVar expected
+        forM_ remaining $ \word -> do
+          if BS.isInfixOf word log.output
+            then modifyMVar_ expected (pure . Set.delete word)
+            else pure ()
+
+  let hooks = Runner.Hooks {Runner.logCollected = onLog}
+
+  build <-
+    runner.prepareBuild
+      $ mkPipeline
+        [ mkStep "Long step" ["echo hello", "sleep 2", "echo world"] "ubuntu",
+          mkStep "Kernel name" ["uname"] "ubuntu"
+        ]
+  result <- runner.runBuild hooks build
+
+  readMVar expected >>= (shouldBe Set.empty)
+
+  result.state `shouldBe` BuildFinished BuildSucceeded
+  Map.elems result.completedSteps `shouldBe` [StepSucceeded, StepSucceeded]
