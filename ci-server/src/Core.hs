@@ -3,6 +3,7 @@
 
 module Core where
 
+import qualified Data.Aeson as Aeson
 import qualified Data.Time.Clock.POSIX as Time
 import qualified Docker
 import RIO
@@ -14,14 +15,14 @@ import qualified RIO.Text as Text
 data Pipeline = Pipeline
   { steps :: NonEmpty Step
   }
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, Aeson.FromJSON)
 
 data Step = Step
   { name :: StepName,
     commands :: NonEmpty Text,
     image :: Docker.Image
   }
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, Aeson.FromJSON)
 
 data Build = Build
   { pipeline :: Pipeline,
@@ -54,7 +55,7 @@ data StepResult
   | StepFailed Docker.ContainerExitCode
   deriving (Show, Eq)
 
-newtype StepName = StepName Text deriving (Show, Eq, Ord)
+newtype StepName = StepName Text deriving (Show, Eq, Ord, Generic, Aeson.FromJSON)
 
 type LogCollection = Map StepName CollectionStatus
 

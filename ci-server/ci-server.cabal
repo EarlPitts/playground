@@ -55,7 +55,6 @@ executable ci-server
     build-depends:
         base
       , ci-server
-
     hs-source-dirs:   app
     default-language: Haskell2010
 
@@ -71,6 +70,7 @@ test-suite ci-server-test
       , rio
       , hspec
       , typed-process
+      , yaml
     default-extensions:
         DeriveFunctor
       , OverloadedRecordDot

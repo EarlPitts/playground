@@ -1,6 +1,7 @@
 module Main (main) where
 
 import Core
+import Data.Yaml as Yaml
 import qualified Docker
 import RIO
 import qualified RIO.ByteString as BS
@@ -76,6 +77,8 @@ main = do
         testLogCollection runner
       it "should pull images" do
         testPullingImage runner
+      it "parse and run pipeline" do
+        testParsePipeline runner
 
 testRunSuccess :: Runner.Service -> IO ()
 testRunSuccess runner = do
@@ -149,3 +152,11 @@ testPullingImage runner = do
 
   result.state `shouldBe` BuildFinished BuildSucceeded
   Map.elems result.completedSteps `shouldBe` [StepSucceeded]
+
+testParsePipeline :: Runner.Service -> IO ()
+testParsePipeline runner = do
+  pipeline <- Yaml.decodeFileThrow "test/pipeline.yaml"
+  build <- runner.prepareBuild pipeline
+  result <- runner.runBuild emptyHooks build
+  result.state `shouldBe` BuildFinished BuildSucceeded
+  Map.elems result.completedSteps `shouldBe` [StepSucceeded, StepSucceeded]
