@@ -1,5 +1,6 @@
 module Docker where
 
+import qualified Codec.Serialise as Serialise
 import Data.Aeson ((.:))
 import qualified Data.Aeson as Aeson
 import qualified Data.Time.Clock.POSIX as Time
@@ -38,7 +39,7 @@ mkService = do
         pullImage = pullImage_ mkReq
       }
 
-newtype Volume = Volume Text deriving (Show, Eq)
+newtype Volume = Volume Text deriving (Show, Eq, Generic, Serialise.Serialise)
 
 instance Aeson.FromJSON Volume where
   parseJSON = Aeson.withObject "CreateVolume" $ \obj ->
@@ -48,7 +49,7 @@ data Image = Image
   { name :: Text,
     tag :: Text
   }
-  deriving (Show, Eq, Generic)
+  deriving (Show, Eq, Generic, Serialise.Serialise)
 
 instance Aeson.FromJSON Image where
   parseJSON = Aeson.withText "Image" $ \str ->
@@ -57,7 +58,7 @@ instance Aeson.FromJSON Image where
       [name] -> pure $ Image {name = name, tag = "latest"}
       _ -> fail $ "Image has too many colons " <> Text.unpack str
 
-newtype ContainerID = ContainerID Text deriving (Show, Eq)
+newtype ContainerID = ContainerID Text deriving (Show, Eq, Generic, Serialise.Serialise)
 
 instance Aeson.FromJSON ContainerID where
   parseJSON = Aeson.withObject "ContrainerID" $ \obj ->
@@ -89,7 +90,7 @@ volumeToText (Docker.Volume t) = t
 containerIdToText :: ContainerID -> Text
 containerIdToText (ContainerID i) = i
 
-newtype ContainerExitCode = ContainerExitCode Int deriving (Show, Eq)
+newtype ContainerExitCode = ContainerExitCode Int deriving (Show, Eq, Generic, Serialise.Serialise)
 
 data ContainerCreateOptions = ContainerCreateOptions
   { image :: Image,

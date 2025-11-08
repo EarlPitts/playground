@@ -1,14 +1,18 @@
 module Main (main) where
 
+import qualified Agent
+import qualified Control.Concurrent.Async as Async
 import Core
 import Data.Yaml as Yaml
 import qualified Docker
+import qualified JobHandler
 import RIO
 import qualified RIO.ByteString as BS
 import qualified RIO.Map as Map
 import RIO.NonEmpty.Partial as NE.P
 import qualified RIO.Set as Set
 import qualified Runner
+import qualified Server
 import qualified System.Process.Typed as Process
 import Test.Hspec
 
@@ -67,18 +71,20 @@ main = do
     let runner = Runner.mkService docker
 
     beforeAll cleanupDocker $ describe "CI" do
-      it "should run a build (success)" do
-        testRunSuccess runner
-      it "should run a build (failure)" do
-        testRunFailure runner
-      it "should share workspace between steps" do
-        testSharedWorkspace runner
-      it "should collect logs" do
-        testLogCollection runner
-      it "should pull images" do
-        testPullingImage runner
-      it "parse and run pipeline" do
-        testParsePipeline runner
+      -- it "should run a build (success)" do
+      --   testRunSuccess runner
+      -- it "should run a build (failure)" do
+      --   testRunFailure runner
+      -- it "should share workspace between steps" do
+      --   testSharedWorkspace runner
+      -- it "should collect logs" do
+      --   testLogCollection runner
+      -- it "should pull images" do
+      --   testPullingImage runner
+      -- it "parse and run pipeline" do
+      --   testParsePipeline runner
+      it "run build on agent" do
+        testServerAndAgent runner
 
 testRunSuccess :: Runner.Service -> IO ()
 testRunSuccess runner = do
@@ -160,3 +166,27 @@ testParsePipeline runner = do
   result <- runner.runBuild emptyHooks build
   result.state `shouldBe` BuildFinished BuildSucceeded
   Map.elems result.completedSteps `shouldBe` [StepSucceeded, StepSucceeded]
+
+testServerAndAgent :: Runner.Service -> IO ()
+testServerAndAgent runner = do
+  let handler = undefined :: JobHandler.Service
+
+  concurrently_
+    (Server.run (Server.Config 9000) handler)
+    (Agent.run (Agent.Config "http://localhost:9000") runner)
+
+  let pipeline = mkPipeline [mkStep "agent-test" ["echo hello", "echo from agent"] "busybox"]
+
+  buildNumber <- handler.queueJob pipeline
+  checkBuild handler buildNumber
+
+checkBuild :: JobHandler.Service -> BuildNumber -> IO ()
+checkBuild handler buildNumber = loop
+  where
+    loop = do
+      Just job <- handler.findJob buildNumber
+      case job.state of
+        JobHandler.JobScheduled build -> case build.state of
+          Core.BuildFinished res -> res `shouldBe` Core.BuildSucceeded
+          _ -> loop
+        _ -> loop

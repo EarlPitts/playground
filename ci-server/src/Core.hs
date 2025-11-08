@@ -3,6 +3,7 @@
 
 module Core where
 
+import qualified Codec.Serialise as Serialise
 import qualified Data.Aeson as Aeson
 import qualified Data.Time.Clock.POSIX as Time
 import qualified Docker
@@ -15,14 +16,14 @@ import qualified RIO.Text as Text
 data Pipeline = Pipeline
   { steps :: NonEmpty Step
   }
-  deriving (Show, Eq, Generic, Aeson.FromJSON)
+  deriving (Show, Eq, Generic, Aeson.FromJSON, Serialise.Serialise)
 
 data Step = Step
   { name :: StepName,
     commands :: NonEmpty Text,
     image :: Docker.Image
   }
-  deriving (Show, Eq, Generic, Aeson.FromJSON)
+  deriving (Show, Eq, Generic, Aeson.FromJSON, Serialise.Serialise)
 
 data Build = Build
   { pipeline :: Pipeline,
@@ -30,32 +31,34 @@ data Build = Build
     completedSteps :: Map StepName StepResult,
     volume :: Docker.Volume
   }
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, Serialise.Serialise)
+
+newtype BuildNumber = BuildNumber Int deriving (Show, Eq, Generic, Serialise.Serialise)
 
 data BuildState
   = BuildReady
   | BuildRunning BuildRunningState
   | BuildFinished BuildResult
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, Serialise.Serialise)
 
 data BuildResult
   = BuildFailed
   | BuildSucceeded
   | BuildUnexpectedState Text
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, Serialise.Serialise)
 
 data BuildRunningState = BuildRunningState
   { step :: StepName,
     container :: Docker.ContainerID
   }
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, Serialise.Serialise)
 
 data StepResult
   = StepSucceeded
   | StepFailed Docker.ContainerExitCode
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, Serialise.Serialise)
 
-newtype StepName = StepName Text deriving (Show, Eq, Ord, Generic, Aeson.FromJSON)
+newtype StepName = StepName Text deriving (Show, Eq, Ord, Generic, Aeson.FromJSON, Serialise.Serialise)
 
 type LogCollection = Map StepName CollectionStatus
 
@@ -69,13 +72,16 @@ data Log = Log
   { output :: ByteString,
     step :: StepName
   }
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, Serialise.Serialise)
 
 stepNameToText :: StepName -> Text
 stepNameToText (StepName t) = t
 
 exitCodeToInt :: Docker.ContainerExitCode -> Int
 exitCodeToInt (Docker.ContainerExitCode code) = code
+
+buildNumberToInt :: BuildNumber -> Int
+buildNumberToInt (BuildNumber n) = n
 
 exitCodeToStepResult :: Docker.ContainerExitCode -> StepResult
 exitCodeToStepResult code =

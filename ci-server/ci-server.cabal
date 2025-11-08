@@ -16,6 +16,9 @@ library
       , Docker
       , Socket
       , Runner
+      , JobHandler
+      , Agent
+      , Server
     build-depends:   
         base
       , aeson
@@ -71,6 +74,7 @@ test-suite ci-server-test
       , hspec
       , typed-process
       , yaml
+      , async
     default-extensions:
         DeriveFunctor
       , OverloadedRecordDot
