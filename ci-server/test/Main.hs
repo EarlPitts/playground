@@ -6,6 +6,7 @@ import Core
 import Data.Yaml as Yaml
 import qualified Docker
 import qualified JobHandler
+import qualified JobHandler.Memory
 import RIO
 import qualified RIO.ByteString as BS
 import qualified RIO.Map as Map
@@ -56,13 +57,25 @@ runnerStub =
 emptyHooks :: Runner.Hooks
 emptyHooks =
   Runner.Hooks
-    { Runner.logCollected = \_ -> pure ()
+    { Runner.logCollected = \_ -> pure (),
+      Runner.buildUpdated = \_ -> pure ()
     }
 
 cleanupDocker :: IO ()
 cleanupDocker = void $ do
   Process.runProcess "docker rm -f $(docker ps -aq --filter \"label=ci\")"
   Process.runProcess "docker volume rm -f $(docker volume ls -q --filter \"label=ci\")"
+
+checkBuild :: JobHandler.Service -> BuildNumber -> IO ()
+checkBuild handler buildNumber = loop
+  where
+    loop = do
+      Just job <- handler.findJob buildNumber
+      case job.state of
+        JobHandler.JobScheduled build -> case build.state of
+          Core.BuildFinished res -> res `shouldBe` Core.BuildSucceeded
+          _ -> loop
+        _ -> loop
 
 main :: IO ()
 main = do
@@ -132,7 +145,11 @@ testLogCollection runner = do
             then modifyMVar_ expected (pure . Set.delete word)
             else pure ()
 
-  let hooks = Runner.Hooks {Runner.logCollected = onLog}
+  let hooks =
+        Runner.Hooks
+          { Runner.logCollected = onLog,
+            Runner.buildUpdated = \_ -> pure ()
+          }
 
   build <-
     runner.prepareBuild
@@ -169,24 +186,15 @@ testParsePipeline runner = do
 
 testServerAndAgent :: Runner.Service -> IO ()
 testServerAndAgent runner = do
-  let handler = undefined :: JobHandler.Service
+  handler <- JobHandler.Memory.mkService
 
-  concurrently_
-    (Server.run (Server.Config 9000) handler)
-    (Agent.run (Agent.Config "http://localhost:9000") runner)
+  Async.concurrently_
+    ( Async.concurrently_
+        (Server.run (Server.Config 9000) handler)
+        (Agent.run (Agent.Config "http://localhost:9000") runner)
+    )
+    do
+      let pipeline = mkPipeline [mkStep "agent-test" ["echo hello", "echo from agent"] "busybox"]
 
-  let pipeline = mkPipeline [mkStep "agent-test" ["echo hello", "echo from agent"] "busybox"]
-
-  buildNumber <- handler.queueJob pipeline
-  checkBuild handler buildNumber
-
-checkBuild :: JobHandler.Service -> BuildNumber -> IO ()
-checkBuild handler buildNumber = loop
-  where
-    loop = do
-      Just job <- handler.findJob buildNumber
-      case job.state of
-        JobHandler.JobScheduled build -> case build.state of
-          Core.BuildFinished res -> res `shouldBe` Core.BuildSucceeded
-          _ -> loop
-        _ -> loop
+      buildNumber <- handler.queueJob pipeline
+      checkBuild handler buildNumber

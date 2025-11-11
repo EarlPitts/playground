@@ -33,7 +33,7 @@ data Build = Build
   }
   deriving (Show, Eq, Generic, Serialise.Serialise)
 
-newtype BuildNumber = BuildNumber Int deriving (Show, Eq, Generic, Serialise.Serialise)
+newtype BuildNumber = BuildNumber Int deriving (Show, Eq, Ord, Generic, Serialise.Serialise)
 
 data BuildState
   = BuildReady

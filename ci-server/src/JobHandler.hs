@@ -18,25 +18,7 @@ data JobState
 
 data Service = Service
   { queueJob :: Pipeline -> IO BuildNumber,
-    dispatchCmd :: IO Agent.Cmd,
-    processMsg :: Agent.Msg -> IO (),
-    findJob :: BuildNumber -> IO (Maybe Job)
+    findJob :: BuildNumber -> IO (Maybe Job),
+    dispatchCmd :: IO (Maybe Agent.Cmd),
+    processMsg :: Agent.Msg -> IO ()
   }
-
-mkService :: Service
-mkService =
-  Service
-    { queueJob = queueJob_,
-      dispatchCmd = dispatchCmd_,
-      processMsg = processMsg_,
-      findJob = undefined
-    }
-
-queueJob_ :: Pipeline -> IO BuildNumber
-queueJob_ pipeline = undefined
-
-dispatchCmd_ :: IO Agent.Cmd
-dispatchCmd_ = undefined
-
-processMsg_ :: Agent.Msg -> IO ()
-processMsg_ = undefined

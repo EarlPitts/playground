@@ -12,7 +12,8 @@ data Service = Service
   }
 
 data Hooks = Hooks
-  { logCollected :: Log -> IO ()
+  { logCollected :: Log -> IO (),
+    buildUpdated :: Build -> IO ()
   }
 
 mkService :: Docker.Service -> Service
@@ -29,6 +30,7 @@ runBuild_ docker hooks build = loop build $ Core.initLogCollection build.pipelin
       (newLogCollection, logs) <- Core.collectLogs docker logCollection build
       traverse_ hooks.logCollected logs
       newBuild <- Core.progress docker build
+      hooks.buildUpdated newBuild
       case newBuild.state of
         BuildFinished _ -> pure newBuild
         _ -> do

@@ -5,6 +5,7 @@ import Core
 import qualified Network.HTTP.Simple as HTTP
 import RIO
 import qualified Runner
+import qualified System.Log.Logger as Logger
 
 data Cmd
   = StartBuild BuildNumber Pipeline
@@ -21,20 +22,25 @@ data Config = Config
   deriving (Show, Eq)
 
 run :: Config -> Runner.Service -> IO ()
-run config runner = forever do
-  endpoint <- HTTP.parseRequest config.endpoint
+run config runner =
+  forever do
+    endpoint <- HTTP.parseRequest config.endpoint
 
-  let req =
-        endpoint
-          & HTTP.setRequestMethod "POST"
-          & HTTP.setRequestPath "agent/pull"
+    let req =
+          endpoint
+            & HTTP.setRequestMethod "POST"
+            & HTTP.setRequestPath "/agent/pull"
 
-  res <- HTTP.httpLBS req
-  traceShowIO res 
-  let cmd = Serialise.deserialise (HTTP.getResponseBody res) :: Maybe Cmd
+    do
+      res <- HTTP.httpLBS req
+      let cmd = Serialise.deserialise (HTTP.getResponseBody res) :: Maybe Cmd
 
-  traverse_ (runCommand runner) cmd
-  threadDelay (1000 * 1000 * 1)
+      traverse_ (runCommand runner) cmd
+      `catch` \e -> do
+            Logger.warningM "quad.agent" "Server offline, waiting..."
+            Logger.warningM "quad.agent" $ show (e :: HTTP.HttpException)
+
+    threadDelay (1000 * 1000 * 1)
 
 runCommand :: Runner.Service -> Cmd -> IO ()
 runCommand runner = \case
@@ -42,8 +48,8 @@ runCommand runner = \case
     build <- runner.prepareBuild pipeline
     let hooks =
           Runner.Hooks
-            { Runner.logCollected = traceShowIO
+            { Runner.logCollected = traceShowIO,
+              Runner.buildUpdated = traceShowIO
             }
 
     void $ runner.runBuild hooks build
-
