@@ -84,18 +84,18 @@ main = do
     let runner = Runner.mkService docker
 
     beforeAll cleanupDocker $ describe "CI" do
-      -- it "should run a build (success)" do
-      --   testRunSuccess runner
-      -- it "should run a build (failure)" do
-      --   testRunFailure runner
-      -- it "should share workspace between steps" do
-      --   testSharedWorkspace runner
-      -- it "should collect logs" do
-      --   testLogCollection runner
-      -- it "should pull images" do
-      --   testPullingImage runner
-      -- it "parse and run pipeline" do
-      --   testParsePipeline runner
+      it "should run a build (success)" do
+        testRunSuccess runner
+      it "should run a build (failure)" do
+        testRunFailure runner
+      it "should share workspace between steps" do
+        testSharedWorkspace runner
+      it "should collect logs" do
+        testLogCollection runner
+      it "should pull images" do
+        testPullingImage runner
+      it "parse and run pipeline" do
+        testParsePipeline runner
       it "run build on agent" do
         testServerAndAgent runner
 
@@ -188,13 +188,16 @@ testServerAndAgent :: Runner.Service -> IO ()
 testServerAndAgent runner = do
   handler <- JobHandler.Memory.mkService
 
-  Async.concurrently_
-    ( Async.concurrently_
-        (Server.run (Server.Config 9000) handler)
-        (Agent.run (Agent.Config "http://localhost:9000") runner)
-    )
-    do
-      let pipeline = mkPipeline [mkStep "agent-test" ["echo hello", "echo from agent"] "busybox"]
+  serverThread <- Async.async $ Server.run (Server.Config 9000) handler
+  Async.link serverThread
 
-      buildNumber <- handler.queueJob pipeline
-      checkBuild handler buildNumber
+  agentThread <- Async.async $ Agent.run (Agent.Config "http://localhost:9000") runner
+  Async.link agentThread
+
+  let pipeline = mkPipeline [mkStep "agent-test" ["echo hello", "echo from agent"] "busybox"]
+
+  buildNumber <- handler.queueJob pipeline
+  checkBuild handler buildNumber
+
+  Async.cancel serverThread
+  Async.cancel agentThread
