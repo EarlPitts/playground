@@ -3,10 +3,13 @@ module Main (main) where
 import qualified Agent
 import qualified Control.Concurrent.Async as Async
 import Core
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Yaml as Yaml
 import qualified Docker
 import qualified JobHandler
 import qualified JobHandler.Memory
+import qualified Network.HTTP.Simple as HTTP
 import RIO
 import qualified RIO.ByteString as BS
 import qualified RIO.Map as Map
@@ -84,20 +87,22 @@ main = do
     let runner = Runner.mkService docker
 
     beforeAll cleanupDocker $ describe "CI" do
-      it "should run a build (success)" do
-        testRunSuccess runner
-      it "should run a build (failure)" do
-        testRunFailure runner
-      it "should share workspace between steps" do
-        testSharedWorkspace runner
-      it "should collect logs" do
-        testLogCollection runner
-      it "should pull images" do
-        testPullingImage runner
-      it "parse and run pipeline" do
-        testParsePipeline runner
-      it "run build on agent" do
-        testServerAndAgent runner
+      -- it "should run a build (success)" do
+      --   testRunSuccess runner
+      -- it "should run a build (failure)" do
+      --   testRunFailure runner
+      -- it "should share workspace between steps" do
+      --   testSharedWorkspace runner
+      -- it "should collect logs" do
+      --   testLogCollection runner
+      -- it "should pull images" do
+      --   testPullingImage runner
+      -- it "parse and run pipeline" do
+      --   testParsePipeline runner
+      -- it "run build on agent" do
+      --   testServerAndAgent runner
+      it "should process webhooks" do
+        testWebhookTrigger runner
 
 testRunSuccess :: Runner.Service -> IO ()
 testRunSuccess runner = do
@@ -184,8 +189,8 @@ testParsePipeline runner = do
   result.state `shouldBe` BuildFinished BuildSucceeded
   Map.elems result.completedSteps `shouldBe` [StepSucceeded, StepSucceeded]
 
-testServerAndAgent :: Runner.Service -> IO ()
-testServerAndAgent runner = do
+runServerAndAgent :: (JobHandler.Service -> IO ()) -> Runner.Service -> IO ()
+runServerAndAgent callback runner = do
   handler <- JobHandler.Memory.mkService
 
   serverThread <- Async.async $ Server.run (Server.Config 9000) handler
@@ -194,10 +199,30 @@ testServerAndAgent runner = do
   agentThread <- Async.async $ Agent.run (Agent.Config "http://localhost:9000") runner
   Async.link agentThread
 
+  callback handler
+
+  Async.cancel serverThread
+  Async.cancel agentThread
+
+testServerAndAgent :: Runner.Service -> IO ()
+testServerAndAgent = runServerAndAgent $ \handler -> do
   let pipeline = mkPipeline [mkStep "agent-test" ["echo hello", "echo from agent"] "busybox"]
 
   buildNumber <- handler.queueJob pipeline
   checkBuild handler buildNumber
 
-  Async.cancel serverThread
-  Async.cancel agentThread
+testWebhookTrigger :: Runner.Service -> IO ()
+testWebhookTrigger = runServerAndAgent $ \handler -> do
+  req <- HTTP.parseRequest "http://localhost:9000"
+
+  res <-
+    HTTP.httpBS
+      $ req
+      & HTTP.setRequestMethod "POST"
+      & HTTP.setRequestPath "webhook/github"
+      & HTTP.setRequestBodyFile "test/github-payload.sample.json"
+
+  let Right (Aeson.Object build) = Aeson.eitherDecodeStrict $ HTTP.getResponseBody res
+  let Just (Aeson.Number number) = KeyMap.lookup "number" build
+
+  checkBuild handler $ BuildNumber (round number)

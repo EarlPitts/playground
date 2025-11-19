@@ -20,6 +20,7 @@ library
       , Agent
       , Server
       , JobHandler.Memory
+      , GitHub
     build-depends:   
         base
       , aeson
@@ -76,6 +77,8 @@ test-suite ci-server-test
       , typed-process
       , yaml
       , async
+      , http-conduit
+      , aeson
     default-extensions:
         DeriveFunctor
       , OverloadedRecordDot

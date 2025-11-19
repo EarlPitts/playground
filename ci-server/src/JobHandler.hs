@@ -2,6 +2,8 @@ module JobHandler where
 
 import qualified Agent
 import Core
+import Data.Aeson ((.:))
+import qualified Data.Aeson as Aeson
 import RIO
 
 data Job = Job
@@ -15,6 +17,21 @@ data JobState
   | JobAssigned
   | JobScheduled Build
   deriving (Show, Eq)
+
+data CommitInfo
+  = CommitInfo
+  { sha :: Text,
+    repo :: Text
+  }
+  deriving (Show, Eq)
+
+instance Aeson.FromJSON CommitInfo where
+  parseJSON = Aeson.withObject "CommitInfo" $ \obj -> do
+    repo <- obj .: "repository"
+    name <- repo .: "full_name"
+    head <- obj .: "head_commit"
+    sha <- head .: "id"
+    pure $ CommitInfo sha name
 
 data Service = Service
   { queueJob :: Pipeline -> IO BuildNumber,
