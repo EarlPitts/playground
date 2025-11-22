@@ -37,15 +37,14 @@ run config runner =
 
       traverse_ (runCommand config runner) cmd
       `catch` \e -> do
-        Logger.warningM "quad.agent" "Server offline, waiting..."
-        Logger.warningM "quad.agent" $ show (e :: HTTP.HttpException)
+        Logger.warningM "ci.agent" "Server offline, waiting..."
+        Logger.warningM "ci.agent" $ show (e :: HTTP.HttpException)
 
     threadDelay (1000 * 1000 * 1)
 
 runCommand :: Config -> Runner.Service -> Cmd -> IO ()
 runCommand config runner = \case
   StartBuild buildNum pipeline -> do
-    build <- runner.prepareBuild pipeline
     let hooks =
           Runner.Hooks
             { Runner.logCollected = \log -> do
@@ -56,7 +55,13 @@ runCommand config runner = \case
                 sendMessage config $ BuildUpdated buildNum build
             }
 
+    let n = Core.displayBuildNumber buildNum
+    Logger.infoM "ci.agent" $ "Starting build " <> n
+
+    build <- runner.prepareBuild pipeline
     void $ runner.runBuild hooks build
+
+    Logger.infoM "ci.agent" $ "Finished build " <> n
 
 sendMessage :: Config -> Msg -> IO ()
 sendMessage config msg = do
