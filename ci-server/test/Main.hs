@@ -80,6 +80,19 @@ checkBuild handler buildNumber = loop
           _ -> loop
         _ -> loop
 
+checkBuild' :: BuildNumber -> IO ()
+checkBuild' buildNumber = loop
+  where
+    loop = do
+      req <- HTTP.parseRequest $ "http://localhost:9000/build/" <> (show (buildNumberToInt buildNumber))
+      res <- HTTP.httpBS req
+      let (Just (Aeson.Object job)) = Aeson.decodeStrict $ HTTP.getResponseBody res
+      traceShowIO job
+      let (Just (Aeson.String status)) = KeyMap.lookup "state" job
+      case status of
+        "succeeded" -> pure ()
+        _ -> loop
+
 main :: IO ()
 main = do
   hspec do
@@ -103,6 +116,8 @@ main = do
       --   testServerAndAgent runner
       it "should process webhooks" do
         testWebhookTrigger runner
+      -- it "should reply with a build" do
+      --   testBuildEndpoint runner
 
 testRunSuccess :: Runner.Service -> IO ()
 testRunSuccess runner = do
@@ -226,3 +241,19 @@ testWebhookTrigger = runServerAndAgent $ \handler -> do
   let Just (Aeson.Number number) = KeyMap.lookup "number" build
 
   checkBuild handler $ BuildNumber (round number)
+
+testBuildEndpoint :: Runner.Service -> IO ()
+testBuildEndpoint = runServerAndAgent $ \handler -> do
+  req <- HTTP.parseRequest "http://localhost:9000"
+
+  res <-
+    HTTP.httpBS
+      $ req
+      & HTTP.setRequestMethod "POST"
+      & HTTP.setRequestPath "webhook/github"
+      & HTTP.setRequestBodyFile "test/github-payload.sample.json"
+
+  let Right (Aeson.Object build) = Aeson.eitherDecodeStrict $ HTTP.getResponseBody res
+  let Just (Aeson.Number number) = KeyMap.lookup "number" build
+
+  checkBuild' $ BuildNumber (round number)

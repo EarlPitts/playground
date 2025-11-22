@@ -37,5 +37,7 @@ data Service = Service
   { queueJob :: Pipeline -> IO BuildNumber,
     findJob :: BuildNumber -> IO (Maybe Job),
     dispatchCmd :: IO (Maybe Agent.Cmd),
-    processMsg :: Agent.Msg -> IO ()
+    processMsg :: Agent.Msg -> IO (),
+    fetchLogs :: BuildNumber -> StepName -> IO (Maybe ByteString),
+    latestJobs :: IO [(BuildNumber, Job)]
   }

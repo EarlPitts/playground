@@ -42,7 +42,13 @@ mkService = do
         JobHandler.processMsg = \msg ->
           STM.atomically
             $ STM.modifyTVar' state
-            $ processMsg_ msg
+            $ processMsg_ msg,
+        JobHandler.fetchLogs = \number step -> STM.atomically do
+          s <- STM.readTVar state
+          pure $ fetchLogs_ number step s,
+        JobHandler.latestJobs = STM.atomically do
+          s <- STM.readTVar state
+          pure $ latestJobs_ s
       }
 
 queueJob_ :: Pipeline -> State -> (BuildNumber, State)
@@ -82,3 +88,9 @@ processMsg_ msg s = case msg of
   Agent.BuildUpdated buildNum build ->
     let f job = job {JobHandler.state = JobHandler.JobScheduled build}
      in s {jobs = Map.adjust f buildNum s.jobs}
+
+fetchLogs_ :: BuildNumber -> StepName -> State -> Maybe ByteString
+fetchLogs_ number step state = Map.lookup (number, step) state.logs
+
+latestJobs_ :: State -> [(BuildNumber, JobHandler.Job)]
+latestJobs_ state = List.reverse $ Map.toList state.jobs
