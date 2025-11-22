@@ -29,10 +29,10 @@ mkService = do
 
   pure
     $ JobHandler.Service
-      { JobHandler.queueJob = \pipeline ->
+      { JobHandler.queueJob = \info pipeline ->
           STM.atomically
             $ STM.stateTVar state
-            $ queueJob_ pipeline,
+            $ queueJob_ info pipeline,
         JobHandler.findJob = \build -> do
           s <- STM.readTVarIO state
           pure $ findJob_ build s,
@@ -51,13 +51,14 @@ mkService = do
           pure $ latestJobs_ s
       }
 
-queueJob_ :: Pipeline -> State -> (BuildNumber, State)
-queueJob_ pipeline s = (buildNum, newState)
+queueJob_ :: JobHandler.CommitInfo -> Pipeline -> State -> (BuildNumber, State)
+queueJob_ info pipeline s = (buildNum, newState)
   where
     job =
       JobHandler.Job
         { JobHandler.pipeline = pipeline,
-          JobHandler.state = JobHandler.JobQueued
+          JobHandler.state = JobHandler.JobQueued,
+          JobHandler.info = info
         }
     newState =
       s

@@ -100,24 +100,25 @@ main = do
     let runner = Runner.mkService docker
 
     beforeAll cleanupDocker $ describe "CI" do
-      -- it "should run a build (success)" do
-      --   testRunSuccess runner
-      -- it "should run a build (failure)" do
-      --   testRunFailure runner
-      -- it "should share workspace between steps" do
-      --   testSharedWorkspace runner
-      -- it "should collect logs" do
-      --   testLogCollection runner
-      -- it "should pull images" do
-      --   testPullingImage runner
-      -- it "parse and run pipeline" do
-      --   testParsePipeline runner
-      -- it "run build on agent" do
-      --   testServerAndAgent runner
+      it "should run a build (success)" do
+        testRunSuccess runner
+      it "should run a build (failure)" do
+        testRunFailure runner
+      it "should share workspace between steps" do
+        testSharedWorkspace runner
+      it "should collect logs" do
+        testLogCollection runner
+      it "should pull images" do
+        testPullingImage runner
+      it "parse and run pipeline" do
+        testParsePipeline runner
+      it "run build on agent" do
+        testServerAndAgent runner
       it "should process webhooks" do
         testWebhookTrigger runner
-      -- it "should reply with a build" do
-      --   testBuildEndpoint runner
+
+-- it "should reply with a build" do
+--   testBuildEndpoint runner
 
 testRunSuccess :: Runner.Service -> IO ()
 testRunSuccess runner = do
@@ -222,8 +223,16 @@ runServerAndAgent callback runner = do
 testServerAndAgent :: Runner.Service -> IO ()
 testServerAndAgent = runServerAndAgent $ \handler -> do
   let pipeline = mkPipeline [mkStep "agent-test" ["echo hello", "echo from agent"] "busybox"]
+  let info =
+        JobHandler.CommitInfo
+          { JobHandler.sha = "sha",
+            JobHandler.branch = "master",
+            JobHandler.message = "test msg",
+            JobHandler.author = "me",
+            JobHandler.repo = "repo"
+          }
 
-  buildNumber <- handler.queueJob pipeline
+  buildNumber <- handler.queueJob info pipeline
   checkBuild handler buildNumber
 
 testWebhookTrigger :: Runner.Service -> IO ()

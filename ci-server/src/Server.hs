@@ -113,7 +113,7 @@ run config handler = Scotty.scotty config.port do
       pipeline <- GH.fetchRemotePipeline info
 
       let step = GH.createCloneStep info
-      handler.queueJob
+      handler.queueJob info
         $ pipeline
           { steps = NonEmpty.cons step pipeline.steps
           }
