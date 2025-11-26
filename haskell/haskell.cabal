@@ -7,6 +7,9 @@ build-type:     Simple
 library
   exposed-modules:
       Scratch
+    , Interview
+    , Architecture.RegistrationFlowIO
+    , Architecture.RegistrationFlowState
     , Algebra.BoolMonoids
     , Algebra.MonadPlus
     , Algebra.KleisliEndo
@@ -39,19 +42,31 @@ library
     src
   default-extensions:
     DeriveFunctor
+    ConstraintKinds
+    DeriveAnyClass
+    DeriveGeneric
+    FlexibleContexts
+    GeneralizedNewtypeDeriving
+    OverloadedRecordDot
   build-depends:
       ansi-terminal
+    , aeson
     , async
     , base
     , bytestring
     , comonad
     , containers
+    , concurrency
     , exceptions
     , free
     , hedis
+    , hspec
     , managed
     , network
+    , monad-loops
     , mtl
+    , optparse-applicative
+    , parsec
     , random
     , scotty
     , sqlite-simple

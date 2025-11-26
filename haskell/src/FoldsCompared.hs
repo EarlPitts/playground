@@ -2,7 +2,7 @@ module FoldsCompared where
 
 -- https://wiki.haskell.org/index.php?title=Foldr_Foldl_Foldl%27
 
-import Prelude hiding (fold', foldl, foldr)
+import Prelude hiding (fold', foldl, foldr, foldl')
 
 veryBigList = [1 .. 10000000]
 

@@ -6,6 +6,7 @@ import Data.Array as A
 import Data.Map as M hiding ((!))
 import Data.Vector as V hiding (modify)
 import Debug.Trace
+import Algorithms.Basics
 
 t :: (Show a) => a -> b -> b
 t n = trace ("calling fib with " <> show n)
@@ -13,13 +14,13 @@ t n = trace ("calling fib with " <> show n)
 -- Naive racursive solution
 -- Way too slow for big numbers
 fib :: Int -> Int
-fib 0 = t 0 1
+fib 0 = t 0 0
 fib 1 = t 1 1
 fib n = t n $ fib (n - 1) + fib (n - 2)
 
 -- "Iterative" solution
 fib' :: Int -> Int
-fib' 0 = 1
+fib' 0 = 0
 fib' 1 = 1
 fib' n = go 1 1 2
   where
@@ -65,6 +66,20 @@ fibb' max = go max
     go n = fibs V.! (n - 1) + fibs V.! (n - 2)
     -- fibs = V.fromList [go x | x <- [0 .. max]]
     fibs = generate max go
+
+tabulate :: (Ix i) => (i -> e) -> (i, i) -> Array i e
+tabulate f bounds = array bounds [(x, f x) | x <- range bounds]
+
+fibo :: Int -> Int
+fibo n = a A.! n
+  where
+    a = tabulate f (0, n)
+    f i = if i <= 1 then i else a A.! (i - 1) + a A.! (i - 2)
+
+fibo' :: Int -> Integer
+fibo' n = fst $ apply n step (0,1)
+  where
+    step (a, b) = (b, a + b)
 
 benchmark :: IO ()
 benchmark =
