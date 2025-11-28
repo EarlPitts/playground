@@ -2,8 +2,10 @@
 
 module Architecture.RegistrationFlowIO where
 
+import Data.Bitraversable
 import Data.IORef
 import qualified Data.Map as Map
+import RIO ((&), (<&>))
 import System.Random (randomIO)
 import Test.Hspec
 
@@ -51,8 +53,8 @@ fakeProofService proofs =
       verifyProof = \m _ -> do
         map <- readIORef proofs
         case Map.lookup m map of
-          Nothing -> pure False
           Just (_, True) -> pure True
+          _ -> pure False
     }
 
 fakeRegistrationService :: IORef [Registration] -> RegistrationService
@@ -62,30 +64,35 @@ fakeRegistrationService registrations = do
     }
 
 completeRegistrationWorkflow ::
-  ProofService ->
-  RegistrationService ->
-  Maybe ProofId ->
   Registration ->
-  IO CompleteRegistrationResult
-completeRegistrationWorkflow proofService registrationService proofId registration =
-  case proofId of
-    Nothing ->
-      ProofRequired <$> proofService.createProof registration.mobile
-    Just pId -> do
-      isValid <- proofService.verifyProof registration.mobile pId
-      if isValid
-        then do
-          registrationService.completeRegistration registration
-          pure RegistrationCompleted
-        else
-          ProofRequired <$> proofService.createProof registration.mobile
+  Maybe Bool ->
+  Either Mobile Registration
+completeRegistrationWorkflow registration proof =
+  case proof of
+    Just True -> Right registration
+    _ -> Left registration.mobile
 
 fixture = do
   proofs <- newIORef Map.empty
   registrations <- newIORef []
   let proofService = fakeProofService proofs
   let regService = fakeRegistrationService registrations
-  let sut = completeRegistrationWorkflow proofService regService
+  -- let sut pid r = do
+  --       b <- traverse (proofService.verifyProof r.mobile) pid
+  --       let res = completeRegistrationWorkflow r b
+  --       p <- bitraverse proofService.createProof regService.completeRegistration res
+  --       pure $ either ProofRequired (const RegistrationCompleted) p
+  -- let sut pid r =
+  --       traverse (proofService.verifyProof r.mobile) pid
+  --         <&> completeRegistrationWorkflow r
+  --         >>= bitraverse proofService.createProof regService.completeRegistration
+  --           <&> either ProofRequired (const RegistrationCompleted)
+  let sut pid r = do
+        validity <- traverse (proofService.verifyProof r.mobile) pid -- impure
+        let decision = completeRegistrationWorkflow r validity -- pure
+        decision -- impure
+          & (bitraverse proofService.createProof regService.completeRegistration)
+          <&> (either ProofRequired (const RegistrationCompleted))
   pure (sut, proofs, registrations)
 
 tests = hspec $ do
@@ -96,3 +103,18 @@ tests = hspec $ do
     rs <- readIORef registrations
     result `shouldBe` RegistrationCompleted
     rs `shouldBe` [Registration (Mobile 234)]
+  it "" $ do
+    (sut, _, registrations) <- fixture
+    result <- sut Nothing (Registration (Mobile 234))
+    rs <- readIORef registrations
+    result `shouldSatisfy` \case
+      ProofRequired _ -> True
+      _ -> False
+    rs `shouldBe` []
+  it "" $ do
+    (sut, proofs, registrations) <- fixture
+    modifyIORef proofs (\ps -> Map.insert (Mobile 234) (123, False) ps)
+    result <- sut (Just 123) (Registration (Mobile 234))
+    rs <- readIORef registrations
+    result `shouldBe` ProofRequired 123
+    rs `shouldBe` []
