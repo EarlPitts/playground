@@ -81,7 +81,31 @@ completeRegistrationWorkflow proofService registrationService proofId registrati
 
 tests = hspec $ do
   it "" $ do
+    let registrations = []
+    let proofs = Map.fromList [(Mobile 234, (123, True))]
     let sut = completeRegistrationWorkflow fakeProofService fakeRegistrationService
-    let (res, (regs, _)) = runState (sut (Just 123) (Registration (Mobile 234))) ([], Map.fromList [(Mobile 234, (123, True))])
+
+    let (res, (rs, _)) = runState (sut (Just 123) (Registration (Mobile 234))) (registrations, proofs)
+
     res `shouldBe` RegistrationCompleted
-    regs `shouldBe` [Registration (Mobile 234)]
+    rs `shouldBe` [Registration (Mobile 234)]
+  it "" $ do
+    let registrations = []
+    let proofs = Map.fromList [(Mobile 234, (123, True))]
+    let sut = completeRegistrationWorkflow fakeProofService fakeRegistrationService
+
+    let (res, (rs, _)) = runState (sut Nothing (Registration (Mobile 234))) (registrations, proofs)
+
+    res `shouldSatisfy` \case
+      ProofRequired _ -> True
+      _ -> False
+    rs `shouldBe` []
+  it "" $ do
+    let registrations = []
+    let proofs = Map.fromList [(Mobile 234, (123, False))]
+    let sut = completeRegistrationWorkflow fakeProofService fakeRegistrationService
+
+    let (res, (rs, _)) = runState (sut (Just 123) (Registration (Mobile 234))) (registrations, proofs)
+
+    res `shouldBe` ProofRequired 123
+    rs `shouldBe` []
