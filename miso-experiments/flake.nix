@@ -42,6 +42,7 @@
               # haskellPackages.hlint
               pkgs.chromium
               # pkgs.ghcid
+              pkgs.zlib
             ];
           });
       in

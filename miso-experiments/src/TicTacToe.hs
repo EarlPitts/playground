@@ -13,9 +13,9 @@ import Data.Foldable (asum)
 import Data.List (find, sort, transpose)
 import Data.Maybe (isJust, isNothing)
 import GHC.Generics
-import Miso
+import Miso hiding ((!!))
 import Miso.Lens
-import Miso.Html.Property
+import Miso.Html.Property hiding (form_)
 import Miso.Html.Event
 import Miso.Html.Element hiding (style_)
 import Miso.Fetch
@@ -164,8 +164,8 @@ data Action
   | UpdateStats [Stat]
   | SaveStats [Stat]
   | SetFlags [Country]
-  | None
-  deriving (Show, Eq)
+  | Error (Response MisoString)
+  -- deriving (Show, Eq)
 
 updateModel :: Action -> Transition Model Action
 updateModel NewGame = do
@@ -181,9 +181,9 @@ updateModel (SetCountry c c') = do
 updateModel (SaveStats stats) =
   io_ $ setLocalStorage "stats" stats
 updateModel (SetFlags countries) = countriesL .= (sort countries)
-updateModel None = pure ()
+updateModel (Error Response {}) = pure ()
 updateModel LoadApp = do
-  getJSON "https://restcountries.com/v3.1/all?fields=name,flag"  [] SetFlags (const $ None)
+  getJSON "https://restcountries.com/v3.1/all?fields=name,flag" [] (SetFlags . body) Error
   io $ do
     maybeStats <- getLocalStorage "stats"
     case maybeStats of
@@ -244,7 +244,7 @@ newGameView :: Model -> View Model Action
 newGameView (Model _ _ _ (PlayersData (PlayerData n c) (PlayerData n' c')) isRunning _ _ countries) =
   nav_
     [class_ "navbar navbar-light bg-light"]
-    [ form
+    [ form_
         ([class_ "form-inline"] <> if isRunning then  [ disabled_ ] else [])
         [ input_
             [ class_ "form-control mr-sm-2",

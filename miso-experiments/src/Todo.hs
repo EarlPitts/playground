@@ -5,7 +5,7 @@
 
 module Todo where
 
-import Miso
+import Miso hiding ((!!))
 import Miso.String (MisoString, ms)
 import Miso.Html.Property hiding (label_)
 import Miso.Html.Event

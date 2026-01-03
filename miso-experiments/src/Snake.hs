@@ -7,7 +7,7 @@ import Data.List
 import Data.IntSet (IntSet, member)
 import Grid
 import Language.Javascript.JSaddle (jsg, (#))
-import Miso hiding (Off, focus, set, update)
+import Miso hiding (Off, focus, set, update, On, jsg, (#))
 import Miso.Lens
 import Miso.String (MisoString, ms)
 import Miso.Html.Property
@@ -82,7 +82,8 @@ keyMaps =
 every :: Int -> Action -> Sub Action
 every n a sink = do
   win <- jsg ("window" :: MisoString)
-  void $ win # ("setInterval" :: MisoString) $ (asyncCallback $ sink a, n)
+  cb <- asyncCallback (sink a)
+  void $ win # ("setInterval" :: MisoString) $ (cb, n)
 
 snake :: App Model Action
 snake =

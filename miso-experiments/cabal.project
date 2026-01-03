@@ -7,13 +7,11 @@ allow-newer:
 source-repository-package
   type: git
   location: https://github.com/dmjio/miso
-  tag: 847ebb812dd1d0d74f39d76f3da425905869806b
-  -- branch: master
+  tag: 21cab91
 
 source-repository-package
   type: git
   location: https://github.com/EarlPitts/my-tools
-  tag: f8e571b114ebc20544418debf74137f3968b0e68
-  -- branch: master
+  branch: master
 
 flags: +template-haskell
