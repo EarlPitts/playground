@@ -10,7 +10,8 @@ common warnings
 library
   import:           warnings
   exposed-modules:
-    GuessTheNumber
+    RockPaperScissors
+    , GuessTheNumber
   ghc-options: -Wall
   hs-source-dirs:
     src
@@ -46,6 +47,7 @@ test-suite haskell-games-test
       , hspec
       , QuickCheck
       , haskell-games
+      , mtl
     default-extensions:
         DeriveFunctor
       , OverloadedRecordDot
