@@ -10,7 +10,8 @@ common warnings
 library
   import:           warnings
   exposed-modules:
-    RockPaperScissors
+      TicTacToe
+    , RockPaperScissors
     , GuessTheNumber
   ghc-options: -Wall
   hs-source-dirs:
@@ -32,12 +33,15 @@ library
     , haskeline
     , monad-loops
     , mtl
+    , split
     , random
     , text
   default-language: Haskell2010
 
 test-suite haskell-games-test
     import:           warnings
+    other-modules:
+      GuessTheNumberSpec
     default-language: Haskell2010
     type:             exitcode-stdio-1.0
     hs-source-dirs:   test
