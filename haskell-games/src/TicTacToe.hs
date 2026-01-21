@@ -39,7 +39,7 @@ getMove available = do
       Nothing -> pure (Left Unexpected)
 
 initBoard :: Board
-initBoard = Board $ zip [0 .. 8] (repeat Empty)
+initBoard = Board $ zip [1 .. 9] (repeat Empty)
 
 updateState :: Tile -> Int -> Board -> Board
 updateState tile n (Board ts) =
@@ -60,9 +60,9 @@ checkWin :: Board -> Tile -> Bool
 checkWin b t =
   any (`isInfixOf` nums) (horizontal <> vertical <> across)
   where
-    horizontal = [[0, 1, 2], [3, 4, 5], [6, 7, 8]]
-    vertical = [[0, 3, 6], [1, 4, 7], [2, 5, 8]]
-    across = [[0, 4, 8], [2, 4, 6]]
+    horizontal = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+    vertical = [[1, 4, 7], [2, 5, 8], [3, 6, 9]]
+    across = [[1, 5, 9], [3, 5, 7]]
     nums = getTiles b t
 
 getTiles :: Board -> Tile -> [Int]
@@ -73,7 +73,9 @@ gameLoop board = do
   let available = getAvailable board
   input <- getMove available
   case input of
-    Left _ -> undefined
+    Left _ -> do
+      putStrLn "Please enter a valid number"
+      gameLoop board
     Right n -> do
       let newState = updateState X n board
       putStrLn "---- You ----\n"
