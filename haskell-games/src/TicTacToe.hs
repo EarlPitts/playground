@@ -46,14 +46,15 @@ updateState tile n (Board ts) =
   Board $ fmap (\(n', t') -> if n == n' then (n, tile) else (n', t')) ts
 
 getAvailable :: Board -> [Int]
-getAvailable (Board ts) = fmap fst $ filter (\(_, tile) -> tile == Empty) ts
+getAvailable (Board ts) =
+  fmap fst $ filter (\(_, tile) -> tile == Empty) ts
 
 computerStep :: Board -> IO Board
 computerStep b = do
   let available = getAvailable b
   n <- randomRIO (0, pred $ length available)
   let choice = available !! n
-  print choice
+  putStrLn $ "Computer's move: " <> show choice
   pure $ updateState O choice b
 
 checkWin :: Board -> Tile -> Bool

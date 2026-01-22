@@ -10,7 +10,8 @@ common warnings
 library
   import:           warnings
   exposed-modules:
-      TicTacToe
+      TicTacTui
+    , TicTacToe
     , RockPaperScissors
     , GuessTheNumber
   ghc-options: -Wall
@@ -27,6 +28,7 @@ library
     OverloadedRecordDot
   build-depends:
       base
+    , brick
     , bytestring
     , containers
     , exceptions
@@ -36,6 +38,7 @@ library
     , split
     , random
     , text
+    , vty
   default-language: Haskell2010
 
 test-suite haskell-games-test
