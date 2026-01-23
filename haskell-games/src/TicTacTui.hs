@@ -6,24 +6,31 @@ import Brick
 import qualified Brick.AttrMap as A
 import qualified Brick.Main as M
 import qualified Brick.Types as T
+import qualified Brick.Widgets.Border.Style as S
 import Brick.Widgets.Center (center)
 import qualified Brick.Widgets.List as L
 import Brick.Widgets.Table
 import Control.Monad
+import Data.Foldable
 import Data.List
-import Data.List.Split (divvy)
+import Data.List (intercalate, isInfixOf)
+import Data.List.Split (chunksOf, divvy)
 import Data.Text (pack)
 import qualified Graphics.Vty as V
+import System.Console.Haskeline
+import System.Random
+import Text.Read (readMaybe)
 
 data Tile = X | O | Empty deriving (Eq)
 
-data Board = Board [(Int, Tile)] deriving (Eq, Show)
+data Board = Board [Tile] deriving (Eq, Show)
 
 data Pos = Pos {row :: Int, col :: Int} deriving (Show, Eq)
 
 data AppState = AppState
   { board :: Board,
-    pos :: Pos
+    pos :: Pos,
+    gen :: StdGen
   }
   deriving (Show, Eq)
 
@@ -35,9 +42,6 @@ instance Show Tile where
 drawUI :: AppState -> [Widget ()]
 drawUI s = [center $ renderTable $ renderGrid s.board s.pos]
 
--- updateIdx :: Int -> a -> [a] -> [a]
--- updateIdx n a as = take (n) as <> [a] <> drop (n + 1) as
-
 modifyIdx :: Int -> (a -> a) -> [a] -> [a]
 modifyIdx n f as = take (n) as <> [f (as !! n)] <> drop (n + 1) as
 
@@ -46,59 +50,62 @@ renderGrid (Board ts) (Pos r c) =
   table $
     divvy 3 3 $
       highlight $
-        fmap
-          ((padLeftRight 1) . txt . pack . show . snd)
-          ts
+        ((padLeftRight 1) . txt . pack . show) <$> ts
   where
-    -- ts' = updateIdx (3 * r + c) ((3 * r + c), X) ts
-    highlight = modifyIdx (3 * r + c) undefined
+    highlight = modifyIdx (3 * r + c) (withAttr highlighted)
 
 initBoard :: Board
-initBoard = Board $ zip [1 .. 9] (repeat Empty)
+initBoard = Board $ (replicate 9 Empty)
 
-initialState = AppState initBoard (Pos 0 0)
+initialState = AppState initBoard (Pos 1 1) (mkStdGen 1) -- TODO
+
+highlighted :: A.AttrName
+highlighted = attrName "highlighted"
 
 theMap :: A.AttrMap
 theMap =
   A.attrMap
     V.defAttr
-    [ (L.listAttr, V.white `on` V.blue)
-    -- , (selectedCellAttr,      V.blue `on` V.white)
-    ]
+    [(highlighted, bg V.yellow)]
 
 appEvent :: T.BrickEvent () e -> T.EventM () AppState ()
 appEvent (T.VtyEvent e) = case e of
-  -- V.EvKey (V.KChar '+') [] -> do
-  --     els <- use (tabularList.L.listElementsL)
-  --     let el = Row (show pos) (show $ pos * 3) (show $ pos * 9)
-  --         pos = Vec.length els
-  --     tabularList %= L.listInsert pos el
-  --
-  -- V.EvKey (V.KChar '-') [] -> do
-  --     sel <- use (tabularList.L.listSelectedL)
-  --     case sel of
-  --         Nothing -> return ()
-  --         Just i -> tabularList %= L.listRemove i
-
   V.EvKey V.KLeft [] -> do
-    (AppState b (Pos r c)) <- get
-    put (AppState b (Pos r (c - 1)))
+    (AppState b (Pos r c) gen) <- get
+    put (AppState b (Pos r (c - 1)) gen)
   V.EvKey V.KRight [] -> do
-    (AppState b (Pos r c)) <- get
-    put (AppState b (Pos r (c + 1)))
+    (AppState b (Pos r c) gen) <- get
+    put (AppState b (Pos r (c + 1)) gen)
   V.EvKey V.KUp [] -> do
-    (AppState b (Pos r c)) <- get
-    put (AppState b (Pos (r - 1) c))
+    (AppState b (Pos r c) gen) <- get
+    put (AppState b (Pos (r - 1) c) gen)
   V.EvKey V.KDown [] -> do
-    (AppState b (Pos r c)) <- get
-    put (AppState b (Pos (r + 1) c))
-  V.EvKey (V.KChar ' ') [] -> do
-    (AppState (Board ts) p@(Pos r c)) <- get
-    put (AppState (Board (modifyIdx (3 * r + c) (const (3 * r + c, X)) ts)) p)
+    (AppState b (Pos r c) gen) <- get
+    put (AppState b (Pos (r + 1) c) gen)
+  V.EvKey (V.KChar ' ') [] -> select
   V.EvKey V.KEsc [] -> M.halt
+  V.EvKey (V.KChar 'q') [] -> M.halt
   _ -> return ()
--- ev -> T.zoom tabularList $ L.handleListEvent ev
 appEvent _ = return ()
+
+currentTile :: AppState -> Tile
+currentTile (AppState (Board ts) (Pos r c) _) = ts !! (r * 3 + c)
+
+select :: T.EventM () AppState ()
+select = do
+  s@(AppState (Board ts) p@(Pos r c) gen) <- get
+  case currentTile s of
+    Empty -> do
+      let newState = (AppState (Board (modifyIdx (3 * r + c) (const X) ts)) p gen)
+      if checkWin newState.board X
+        then pure () -- You won
+        else do
+          let (newGen, newBoard) = computerStep newState.board gen
+          let newerState = AppState newBoard p newGen
+          if checkWin newerState.board O
+            then pure () -- computer won
+            else put newerState
+    _ -> return ()
 
 theApp :: M.App AppState e ()
 theApp =
@@ -109,6 +116,51 @@ theApp =
       M.appStartEvent = return (),
       M.appAttrMap = const theMap
     }
+
+data InputError = EOF | InvalidMove | Unexpected deriving (Show, Eq)
+
+getMove :: [Int] -> IO (Either InputError Int)
+getMove available = do
+  input <-
+    runInputT
+      defaultSettings
+      (getInputLine "Next move: ")
+  case input of
+    Nothing -> pure $ Left EOF
+    Just n -> case readMaybe n :: Maybe Int of
+      Just n -> if n `elem` available then pure $ Right n else pure $ Left InvalidMove
+      Nothing -> pure (Left Unexpected)
+
+updateState :: Tile -> Int -> Board -> Board
+updateState tile n (Board ts) =
+  Board $
+    fmap snd $
+      fmap
+        (\(n', t') -> if n == n' then (n, tile) else (n', t'))
+        (zip [0 ..] ts)
+
+getAvailable :: Board -> [Int]
+getAvailable (Board ts) =
+  fmap fst $ filter (\(_, tile) -> tile == Empty) (zip [0 ..] ts)
+
+computerStep :: Board -> StdGen -> (StdGen, Board)
+computerStep b gen =
+  let available = getAvailable b
+      (n, newGen) = randomR (0, pred $ length available) gen
+      choice = available !! n
+   in (newGen, updateState O choice b)
+
+checkWin :: Board -> Tile -> Bool
+checkWin b t =
+  any (`isInfixOf` nums) (horizontal <> vertical <> across)
+  where
+    horizontal = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+    vertical = [[1, 4, 7], [2, 5, 8], [3, 6, 9]]
+    across = [[1, 5, 9], [3, 5, 7]]
+    nums = getTiles b t
+
+getTiles :: Board -> Tile -> [Int]
+getTiles (Board b) t = fmap fst (filter (\(_, tile) -> tile == t) (zip [0 ..] b))
 
 main :: IO ()
 main = void $ M.defaultMain theApp initialState
