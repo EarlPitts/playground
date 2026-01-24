@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module TicTacTui where
 
@@ -17,22 +18,29 @@ import Data.List (intercalate, isInfixOf)
 import Data.List.Split (chunksOf, divvy)
 import Data.Text (pack)
 import qualified Graphics.Vty as V
+import Lens.Micro ((^.))
+import Lens.Micro.Mtl
+import Lens.Micro.TH
 import System.Console.Haskeline
 import System.Random
 import Text.Read (readMaybe)
 
 data Tile = X | O | Empty deriving (Eq)
 
-data Board = Board [Tile] deriving (Eq, Show)
+data Board = Board [Tile] deriving (Eq)
 
 data Pos = Pos {row :: Int, col :: Int} deriving (Show, Eq)
 
+data Player = Computer | Human deriving (Show, Eq)
+
 data AppState = AppState
-  { board :: Board,
-    pos :: Pos,
-    gen :: StdGen
+  { _board :: Board,
+    _pos :: Pos,
+    _gen :: StdGen
   }
-  deriving (Show, Eq)
+  deriving (Eq)
+
+makeLenses ''AppState
 
 instance Show Tile where
   show X = "X"
@@ -40,7 +48,7 @@ instance Show Tile where
   show Empty = " "
 
 drawUI :: AppState -> [Widget ()]
-drawUI s = [center $ renderTable $ renderGrid s.board s.pos]
+drawUI s = [center $ renderTable $ renderGrid s._board s._pos]
 
 modifyIdx :: Int -> (a -> a) -> [a] -> [a]
 modifyIdx n f as = take (n) as <> [f (as !! n)] <> drop (n + 1) as
@@ -70,18 +78,14 @@ theMap =
 
 appEvent :: T.BrickEvent () e -> T.EventM () AppState ()
 appEvent (T.VtyEvent e) = case e of
-  V.EvKey V.KLeft [] -> do
-    (AppState b (Pos r c) gen) <- get
-    put (AppState b (Pos r (c - 1)) gen)
-  V.EvKey V.KRight [] -> do
-    (AppState b (Pos r c) gen) <- get
-    put (AppState b (Pos r (c + 1)) gen)
-  V.EvKey V.KUp [] -> do
-    (AppState b (Pos r c) gen) <- get
-    put (AppState b (Pos (r - 1) c) gen)
-  V.EvKey V.KDown [] -> do
-    (AppState b (Pos r c) gen) <- get
-    put (AppState b (Pos (r + 1) c) gen)
+  V.EvKey V.KLeft [] ->
+    pos %= (\(Pos r c) -> Pos r (c - 1))
+  V.EvKey V.KRight [] ->
+    pos %= (\(Pos r c) -> Pos r (c + 1))
+  V.EvKey V.KUp [] ->
+    pos %= (\(Pos r c) -> Pos (r - 1) c)
+  V.EvKey V.KDown [] ->
+    pos %= (\(Pos r c) -> Pos (r + 1) c)
   V.EvKey (V.KChar ' ') [] -> select
   V.EvKey V.KEsc [] -> M.halt
   V.EvKey (V.KChar 'q') [] -> M.halt
@@ -97,12 +101,12 @@ select = do
   case currentTile s of
     Empty -> do
       let newState = (AppState (Board (modifyIdx (3 * r + c) (const X) ts)) p gen)
-      if checkWin newState.board X
+      if checkWin newState._board X
         then pure () -- You won
         else do
-          let (newGen, newBoard) = computerStep newState.board gen
+          let (newGen, newBoard) = computerStep newState._board gen
           let newerState = AppState newBoard p newGen
-          if checkWin newerState.board O
+          if checkWin newerState._board O
             then pure () -- computer won
             else put newerState
     _ -> return ()

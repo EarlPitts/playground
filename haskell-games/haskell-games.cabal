@@ -33,6 +33,9 @@ library
     , containers
     , exceptions
     , haskeline
+    , microlens
+    , microlens-th
+    , microlens-mtl
     , monad-loops
     , mtl
     , split
