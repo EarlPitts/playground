@@ -17,6 +17,7 @@ import Data.List
 import Data.List (intercalate, isInfixOf)
 import Data.List.Split (chunksOf, divvy)
 import Data.Text (pack)
+import Debug.Trace
 import qualified Graphics.Vty as V
 import Lens.Micro ((^.))
 import Lens.Micro.Mtl
@@ -27,7 +28,7 @@ import Text.Read (readMaybe)
 
 data Tile = X | O | Empty deriving (Eq)
 
-data Board = Board [Tile] deriving (Eq)
+data Board = Board {tiles :: [Tile]} deriving (Eq)
 
 data Pos = Pos {row :: Int, col :: Int} deriving (Show, Eq)
 
@@ -36,7 +37,8 @@ data Player = Computer | Human deriving (Show, Eq)
 data AppState = AppState
   { _board :: Board,
     _pos :: Pos,
-    _gen :: StdGen
+    _gen :: StdGen,
+    _winner :: Maybe Player
   }
   deriving (Eq)
 
@@ -48,7 +50,10 @@ instance Show Tile where
   show Empty = " "
 
 drawUI :: AppState -> [Widget ()]
-drawUI s = [center $ renderTable $ renderGrid s._board s._pos]
+drawUI s = case s._winner of
+  Just Human -> [center $ txt "You won!"]
+  Just Computer -> [center $ txt "You lost :("]
+  Nothing -> [center $ renderTable $ renderGrid s._board s._pos]
 
 modifyIdx :: Int -> (a -> a) -> [a] -> [a]
 modifyIdx n f as = take (n) as <> [f (as !! n)] <> drop (n + 1) as
@@ -65,7 +70,7 @@ renderGrid (Board ts) (Pos r c) =
 initBoard :: Board
 initBoard = Board $ (replicate 9 Empty)
 
-initialState = AppState initBoard (Pos 1 1) (mkStdGen 1) -- TODO
+initialState = AppState initBoard (Pos 1 1) (mkStdGen 1) Nothing -- TODO
 
 highlighted :: A.AttrName
 highlighted = attrName "highlighted"
@@ -93,21 +98,21 @@ appEvent (T.VtyEvent e) = case e of
 appEvent _ = return ()
 
 currentTile :: AppState -> Tile
-currentTile (AppState (Board ts) (Pos r c) _) = ts !! (r * 3 + c)
+currentTile (AppState (Board ts) (Pos r c) _ _) = ts !! (r * 3 + c)
 
 select :: T.EventM () AppState ()
 select = do
-  s@(AppState (Board ts) p@(Pos r c) gen) <- get
+  s@(AppState (Board ts) p@(Pos r c) gen w) <- get
   case currentTile s of
     Empty -> do
-      let newState = (AppState (Board (modifyIdx (3 * r + c) (const X) ts)) p gen)
+      let newState = (AppState (Board (modifyIdx (3 * r + c) (const X) ts)) p gen w)
       if checkWin newState._board X
-        then pure () -- You won
+        then winner %= (const $ Just Human)
         else do
           let (newGen, newBoard) = computerStep newState._board gen
-          let newerState = AppState newBoard p newGen
+          let newerState = AppState newBoard p newGen w
           if checkWin newerState._board O
-            then pure () -- computer won
+            then winner %= (const $ Just Computer)
             else put newerState
     _ -> return ()
 
@@ -158,9 +163,9 @@ checkWin :: Board -> Tile -> Bool
 checkWin b t =
   any (`isInfixOf` nums) (horizontal <> vertical <> across)
   where
-    horizontal = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
-    vertical = [[1, 4, 7], [2, 5, 8], [3, 6, 9]]
-    across = [[1, 5, 9], [3, 5, 7]]
+    horizontal = [[0, 1, 2], [3, 4, 5], [6, 7, 8]]
+    vertical = [[0, 3, 6], [1, 4, 7], [2, 5, 8]]
+    across = [[0, 4, 8], [2, 4, 6]]
     nums = getTiles b t
 
 getTiles :: Board -> Tile -> [Int]
