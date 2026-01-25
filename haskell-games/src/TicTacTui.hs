@@ -23,13 +23,13 @@ data Board = Board {tiles :: [Tile]} deriving (Eq)
 
 data Pos = Pos {row :: Int, col :: Int} deriving (Show, Eq)
 
-data Player = Computer | Human | Nobody deriving (Show, Eq)
+data Winner = Computer | Human | Nobody deriving (Show, Eq)
 
 data AppState = AppState
   { _board :: Board,
     _pos :: Pos,
     _gen :: StdGen,
-    _winner :: Maybe Player
+    _winner :: Maybe Winner
   }
   deriving (Eq)
 
@@ -62,7 +62,8 @@ renderGrid (Board ts) (Pos r c) =
 initBoard :: Board
 initBoard = Board $ (replicate 9 Empty)
 
-initialState seed = AppState initBoard (Pos 1 1) (mkStdGen seed) Nothing
+initialState :: StdGen -> AppState
+initialState gen = AppState initBoard (Pos 1 1) gen Nothing
 
 highlighted :: A.AttrName
 highlighted = attrName "highlighted"
@@ -79,7 +80,11 @@ appEvent (T.VtyEvent e) = case e of
   V.EvKey V.KRight [] -> right
   V.EvKey V.KUp [] -> up
   V.EvKey V.KDown [] -> down
-  V.EvKey (V.KChar ' ') [] -> select
+  V.EvKey (V.KChar ' ') [] -> do
+    w <- use winner
+    case w of
+      Nothing -> select
+      Just _ -> newGame
   V.EvKey V.KEsc [] -> M.halt
   V.EvKey (V.KChar 'q') [] -> M.halt
   _ -> return ()
@@ -101,6 +106,11 @@ right = do
 
 currentTile :: AppState -> Tile
 currentTile (AppState (Board ts) (Pos r c) _ _) = ts !! (r * 3 + c)
+
+newGame :: T.EventM () AppState ()
+newGame = do
+  g <- use gen
+  put (initialState g)
 
 select :: T.EventM () AppState ()
 select = do
@@ -171,5 +181,5 @@ getTiles (Board b) t = fmap fst (filter (\(_, tile) -> tile == t) (zip [0 ..] b)
 
 main :: IO ()
 main = do
-  seed <- randomIO
-  void $ M.defaultMain theApp (initialState seed)
+  gen <- initStdGen
+  void $ M.defaultMain theApp (initialState gen)
