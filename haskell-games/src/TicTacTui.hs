@@ -7,24 +7,15 @@ import Brick
 import qualified Brick.AttrMap as A
 import qualified Brick.Main as M
 import qualified Brick.Types as T
-import qualified Brick.Widgets.Border.Style as S
 import Brick.Widgets.Center (center)
-import qualified Brick.Widgets.List as L
 import Brick.Widgets.Table
 import Control.Monad
-import Data.Foldable
-import Data.List
-import Data.List (intercalate, isInfixOf)
-import Data.List.Split (chunksOf, divvy)
+import Data.List.Split (divvy)
 import Data.Text (pack)
-import Debug.Trace
 import qualified Graphics.Vty as V
-import Lens.Micro ((^.))
 import Lens.Micro.Mtl
 import Lens.Micro.TH
-import System.Console.Haskeline
 import System.Random
-import Text.Read (readMaybe)
 
 data Tile = X | O | Empty deriving (Eq)
 
@@ -32,7 +23,7 @@ data Board = Board {tiles :: [Tile]} deriving (Eq)
 
 data Pos = Pos {row :: Int, col :: Int} deriving (Show, Eq)
 
-data Player = Computer | Human deriving (Show, Eq)
+data Player = Computer | Human | Nobody deriving (Show, Eq)
 
 data AppState = AppState
   { _board :: Board,
@@ -51,8 +42,9 @@ instance Show Tile where
 
 drawUI :: AppState -> [Widget ()]
 drawUI s = case s._winner of
-  Just Human -> [center $ txt "You won!"]
-  Just Computer -> [center $ txt "You lost :("]
+  Just Human -> [center $ txt "You won!" <=> (renderTable $ renderGrid s._board s._pos)]
+  Just Computer -> [center $ txt "You lost :(" <=> (renderTable $ renderGrid s._board s._pos)]
+  Just Nobody -> [center $ txt "Draw" <=> (renderTable $ renderGrid s._board s._pos)]
   Nothing -> [center $ renderTable $ renderGrid s._board s._pos]
 
 modifyIdx :: Int -> (a -> a) -> [a] -> [a]
@@ -70,7 +62,7 @@ renderGrid (Board ts) (Pos r c) =
 initBoard :: Board
 initBoard = Board $ (replicate 9 Empty)
 
-initialState = AppState initBoard (Pos 1 1) (mkStdGen 1) Nothing -- TODO
+initialState seed = AppState initBoard (Pos 1 1) (mkStdGen seed) Nothing
 
 highlighted :: A.AttrName
 highlighted = attrName "highlighted"
@@ -79,23 +71,33 @@ theMap :: A.AttrMap
 theMap =
   A.attrMap
     V.defAttr
-    [(highlighted, bg V.yellow)]
+    [(highlighted, V.black `on` V.yellow)]
 
 appEvent :: T.BrickEvent () e -> T.EventM () AppState ()
 appEvent (T.VtyEvent e) = case e of
-  V.EvKey V.KLeft [] ->
-    pos %= (\(Pos r c) -> Pos r (c - 1))
-  V.EvKey V.KRight [] ->
-    pos %= (\(Pos r c) -> Pos r (c + 1))
-  V.EvKey V.KUp [] ->
-    pos %= (\(Pos r c) -> Pos (r - 1) c)
-  V.EvKey V.KDown [] ->
-    pos %= (\(Pos r c) -> Pos (r + 1) c)
+  V.EvKey V.KLeft [] -> left
+  V.EvKey V.KRight [] -> right
+  V.EvKey V.KUp [] -> up
+  V.EvKey V.KDown [] -> down
   V.EvKey (V.KChar ' ') [] -> select
   V.EvKey V.KEsc [] -> M.halt
   V.EvKey (V.KChar 'q') [] -> M.halt
   _ -> return ()
 appEvent _ = return ()
+
+up, down, left, right :: EventM () AppState ()
+up = do
+  Pos r c <- use pos
+  when (r > 0) (pos .= Pos (r - 1) c)
+down = do
+  Pos r c <- use pos
+  when (r < 2) (pos .= Pos (r + 1) c)
+left = do
+  Pos r c <- use pos
+  when (c > 0) (pos .= Pos r (c - 1))
+right = do
+  Pos r c <- use pos
+  when (c < 2) (pos .= Pos r (c + 1))
 
 currentTile :: AppState -> Tile
 currentTile (AppState (Board ts) (Pos r c) _ _) = ts !! (r * 3 + c)
@@ -107,13 +109,19 @@ select = do
     Empty -> do
       let newState = (AppState (Board (modifyIdx (3 * r + c) (const X) ts)) p gen w)
       if checkWin newState._board X
-        then winner %= (const $ Just Human)
+        then do
+          put newState
+          winner %= (const $ Just Human)
         else do
-          let (newGen, newBoard) = computerStep newState._board gen
-          let newerState = AppState newBoard p newGen w
-          if checkWin newerState._board O
-            then winner %= (const $ Just Computer)
-            else put newerState
+          case computerStep newState._board gen of
+            Nothing -> winner %= (const $ Just Nobody)
+            Just (newGen, newBoard) ->
+              let newerState = AppState newBoard p newGen w
+               in if checkWin newerState._board O
+                    then do
+                      put newerState
+                      winner %= (const $ Just Computer)
+                    else put newerState
     _ -> return ()
 
 theApp :: M.App AppState e ()
@@ -128,18 +136,6 @@ theApp =
 
 data InputError = EOF | InvalidMove | Unexpected deriving (Show, Eq)
 
-getMove :: [Int] -> IO (Either InputError Int)
-getMove available = do
-  input <-
-    runInputT
-      defaultSettings
-      (getInputLine "Next move: ")
-  case input of
-    Nothing -> pure $ Left EOF
-    Just n -> case readMaybe n :: Maybe Int of
-      Just n -> if n `elem` available then pure $ Right n else pure $ Left InvalidMove
-      Nothing -> pure (Left Unexpected)
-
 updateState :: Tile -> Int -> Board -> Board
 updateState tile n (Board ts) =
   Board $
@@ -152,16 +148,18 @@ getAvailable :: Board -> [Int]
 getAvailable (Board ts) =
   fmap fst $ filter (\(_, tile) -> tile == Empty) (zip [0 ..] ts)
 
-computerStep :: Board -> StdGen -> (StdGen, Board)
+computerStep :: Board -> StdGen -> Maybe (StdGen, Board)
 computerStep b gen =
   let available = getAvailable b
       (n, newGen) = randomR (0, pred $ length available) gen
       choice = available !! n
-   in (newGen, updateState O choice b)
+   in if (not . null) available
+        then Just (newGen, updateState O choice b)
+        else Nothing
 
 checkWin :: Board -> Tile -> Bool
 checkWin b t =
-  any (`isInfixOf` nums) (horizontal <> vertical <> across)
+  any (all (`elem` nums)) (horizontal <> vertical <> across)
   where
     horizontal = [[0, 1, 2], [3, 4, 5], [6, 7, 8]]
     vertical = [[0, 3, 6], [1, 4, 7], [2, 5, 8]]
@@ -172,4 +170,6 @@ getTiles :: Board -> Tile -> [Int]
 getTiles (Board b) t = fmap fst (filter (\(_, tile) -> tile == t) (zip [0 ..] b))
 
 main :: IO ()
-main = void $ M.defaultMain theApp initialState
+main = do
+  seed <- randomIO
+  void $ M.defaultMain theApp (initialState seed)
