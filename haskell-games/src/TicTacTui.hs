@@ -77,9 +77,13 @@ theMap =
 appEvent :: T.BrickEvent () e -> T.EventM () AppState ()
 appEvent (T.VtyEvent e) = case e of
   V.EvKey V.KLeft [] -> left
+  V.EvKey (V.KChar 'h') [] -> left
   V.EvKey V.KRight [] -> right
+  V.EvKey (V.KChar 'l') [] -> right
   V.EvKey V.KUp [] -> up
+  V.EvKey (V.KChar 'k') [] -> up
   V.EvKey V.KDown [] -> down
+  V.EvKey (V.KChar 'j') [] -> down
   V.EvKey (V.KChar ' ') [] -> do
     w <- use winner
     case w of
@@ -105,7 +109,8 @@ right = do
   when (c < 2) (pos .= Pos r (c + 1))
 
 currentTile :: AppState -> Tile
-currentTile (AppState (Board ts) (Pos r c) _ _) = ts !! (r * 3 + c)
+currentTile (AppState (Board ts) (Pos r c) _ _) =
+  ts !! (r * 3 + c)
 
 newGame :: T.EventM () AppState ()
 newGame = do
@@ -143,8 +148,6 @@ theApp =
       M.appStartEvent = return (),
       M.appAttrMap = const theMap
     }
-
-data InputError = EOF | InvalidMove | Unexpected deriving (Show, Eq)
 
 updateState :: Tile -> Int -> Board -> Board
 updateState tile n (Board ts) =
