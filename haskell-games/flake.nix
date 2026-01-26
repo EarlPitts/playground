@@ -27,18 +27,21 @@
               cabal-install
               haskell-language-server
               hlint
+              zlib
               # Add any system dependencies here
             ]
             ++ [
               pkgs.mesa
               pkgs.freeglut
               pkgs.mesa_glu
+              pkgs.zlib
             ];
 
           LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
             pkgs.freeglut
             pkgs.mesa
             pkgs.mesa_glu
+            pkgs.zlib
           ];
         };
       }
