@@ -10,14 +10,21 @@ import qualified Brick.Types as T
 import Brick.Widgets.Center (center)
 import Brick.Widgets.Table
 import Control.Monad (void)
+-- import Network.HTTP.Req
+
+import Control.Monad.IO.Class
+import Data.Aeson (Value (..))
+import Data.Aeson.Decoding
 import Data.Bifunctor
 import Data.List
+import Data.Text (Text, unpack)
 import qualified Graphics.Vty as V
 import Lens.Micro.Mtl
 import Lens.Micro.TH
+import Network.HTTP.Req
 import System.Random
--- import Network.HTTP.Req
-import Data.Aeson (Value)
+import qualified Data.Vector as VEC
+import Data.Aeson.Types (Array)
 
 data AppState = AppState
   { _word :: String,
@@ -75,16 +82,20 @@ theApp =
       M.appAttrMap = const theMap
     }
 
--- main :: IO ()
--- main = do
---   gen <- initStdGen
---   void $ M.defaultMain theApp (initialState "kecsketej" gen)
+main :: IO ()
+main = do
+  word <- getWord 
+  gen <- initStdGen
+  void $ M.defaultMain theApp (initialState word gen)
 
--- main = runReq defaultHttpConfig $ do
---   r <- req GET
---            (https "httpbin.org" /: "get")
---            NoReqBody
---            jsonResponse
---            mempty
---   liftIO $ print (responseBody r :: Value)
-
+getWord :: IO String
+getWord = runReq defaultHttpConfig $ do
+  r <-
+    req
+      GET
+      (https "random-word-api.herokuapp.com" /: "word")
+      NoReqBody
+      bsResponse
+      mempty
+  let (Just [word]) = decodeStrict (responseBody r)
+  liftIO $ pure word

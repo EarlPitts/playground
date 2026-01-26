@@ -15,7 +15,6 @@ library
     , TicTacToe
     , RockPaperScissors
     , GuessTheNumber
-  ghc-options: -Wall
   hs-source-dirs:
     src
   default-extensions:
@@ -42,8 +41,9 @@ library
     , mtl
     , split
     , random
-    , wreq
+    , req
     , text
+    , vector
     , vty
   default-language: Haskell2010
 
