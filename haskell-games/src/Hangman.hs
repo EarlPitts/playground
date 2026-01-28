@@ -8,7 +8,7 @@ import qualified Brick.AttrMap as A
 import qualified Brick.Main as M
 import qualified Brick.Types as T
 import Brick.Widgets.Center (center)
-import Control.Monad (void)
+import Control.Monad (void, when)
 import Control.Monad.IO.Class
 import Data.Aeson.Decoding
 import Data.Bifunctor
@@ -24,7 +24,8 @@ data AppState = AppState
   { _word :: String,
     _guessed :: S.Set Char,
     _wrong :: S.Set Char,
-    _gen :: StdGen
+    _gen :: StdGen,
+    _ended :: Bool
   }
   deriving (Show, Eq)
 
@@ -44,22 +45,48 @@ initialState w g =
         first
           (S.fromList . take letternum)
           (uniformShuffleList (getLetters w) g)
-   in AppState w guessed S.empty g
+   in AppState w guessed S.empty g False
 
 appEvent :: T.BrickEvent () e -> T.EventM () AppState ()
 appEvent (T.VtyEvent e) = case e of
+  V.EvKey (V.KChar ' ') [] -> newGame
   V.EvKey (V.KChar c) [] -> guess c
   V.EvKey V.KEsc [] -> M.halt
   V.EvKey (V.KChar 'q') [] -> M.halt
   _ -> return ()
 appEvent _ = return ()
 
+newGame :: T.EventM () AppState ()
+newGame = do
+  (AppState _ _ _ gen ended) <- get
+  if ended
+    then do
+      newWord <- liftIO getWord
+      put $ initialState newWord gen
+    else pure ()
+
 guess :: Char -> T.EventM () AppState ()
 guess c = do
-  w <- use word
-  if c `elem` w
-    then guessed %= (S.insert c)
-    else wrong %= (S.insert c)
+  end <- use ended
+  if end
+    then pure ()
+    else do
+      w <- use word
+      if c `elem` w
+        then do
+          g <- use guessed
+          let newGuessed = S.insert c g
+          guessed .= newGuessed
+          when
+            ((S.fromList $ getLetters w) == newGuessed)
+            (ended .= True)
+        else do
+          ws <- use wrong
+          let newWrong = S.insert c ws
+          wrong .= newWrong
+          when
+            (length newWrong > 5)
+            (ended .= True)
 
 theMap :: A.AttrMap
 theMap = A.attrMap V.defAttr []
