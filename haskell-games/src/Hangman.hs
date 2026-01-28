@@ -50,9 +50,8 @@ initialState w g =
 appEvent :: T.BrickEvent () e -> T.EventM () AppState ()
 appEvent (T.VtyEvent e) = case e of
   V.EvKey (V.KChar ' ') [] -> newGame
-  V.EvKey (V.KChar c) [] -> guess c
+  V.EvKey (V.KChar c) [] -> use ended >>= (flip when) (guess c) . not
   V.EvKey V.KEsc [] -> M.halt
-  V.EvKey (V.KChar 'q') [] -> M.halt
   _ -> return ()
 appEvent _ = return ()
 
@@ -67,26 +66,22 @@ newGame = do
 
 guess :: Char -> T.EventM () AppState ()
 guess c = do
-  end <- use ended
-  if end
-    then pure ()
+  w <- use word
+  if c `elem` w
+    then do
+      g <- use guessed
+      let newGuessed = S.insert c g
+      guessed .= newGuessed
+      when
+        ((S.fromList $ getLetters w) == newGuessed)
+        (ended .= True)
     else do
-      w <- use word
-      if c `elem` w
-        then do
-          g <- use guessed
-          let newGuessed = S.insert c g
-          guessed .= newGuessed
-          when
-            ((S.fromList $ getLetters w) == newGuessed)
-            (ended .= True)
-        else do
-          ws <- use wrong
-          let newWrong = S.insert c ws
-          wrong .= newWrong
-          when
-            (length newWrong > 5)
-            (ended .= True)
+      ws <- use wrong
+      let newWrong = S.insert c ws
+      wrong .= newWrong
+      when
+        (length newWrong > 5)
+        (ended .= True)
 
 theMap :: A.AttrMap
 theMap = A.attrMap V.defAttr []
