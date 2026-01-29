@@ -81,7 +81,7 @@ guess c = do
       wrong .= newWrong
       when
         (length newWrong > 5)
-        (ended .= True)
+        ((guessed .= S.fromList w) >> (ended .= True))
 
 theMap :: A.AttrMap
 theMap = A.attrMap V.defAttr []
@@ -90,8 +90,14 @@ drawUI :: AppState -> [Widget ()]
 drawUI s =
   [ center $
       drawHanging (s._wrong)
-        <+> ( (str (showGuessed s._word s._guessed))
-                <=> (str $ S.toList s._wrong)
+        <+> ( padLeft
+                (Pad 3)
+                ( padTop
+                    (Pad 2)
+                    ( (str (showGuessed s._word s._guessed))
+                        <=> (str $ S.toList s._wrong)
+                    )
+                )
             )
   ]
 
