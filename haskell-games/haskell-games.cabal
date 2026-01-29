@@ -10,7 +10,8 @@ common warnings
 library
   import:           warnings
   exposed-modules:
-      Hangman
+      Minesweeper
+    , Hangman
     , TicTacTui
     , TicTacToe
     , RockPaperScissors
