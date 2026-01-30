@@ -103,39 +103,61 @@ drawUI s =
 
 drawHanging :: S.Set Char -> Widget ()
 drawHanging ws
-  | S.size ws <= 2 = str start
-  | S.size ws <= 5 = str half
+  | S.size ws == 0 = str start
+  | S.size ws <= 1 = str head
+  | S.size ws <= 3 = str half
+  | S.size ws <= 5 = str arms
   | otherwise = str full
+  where
+    start :: String
+    start =
+      "\n\
+      \      _ _ _\n\
+      \      |\n\
+      \      |\n\
+      \      |\n\
+      \      |\n\
+      \     =========\n"
 
-start :: String
-start =
-  "\n\
-  \      _ _ _\n\
-  \      |\n\
-  \      |\n\
-  \      |\n\
-  \      |\n\
-  \     =========\n"
+    head :: String
+    head =
+      "\n\
+      \      _ _ _\n\
+      \      |    O\n\
+      \      |\n\
+      \      |\n\
+      \      |\n\
+      \     =========\n"
 
-half :: String
-half =
-  "\n\
-  \      _ _ _\n\
-  \      |    O\n\
-  \      |    |\n\
-  \      |\n\
-  \      |\n\
-  \     =========\n"
+    half :: String
+    half =
+      "\n\
+      \      _ _ _\n\
+      \      |    O\n\
+      \      |    |\n\
+      \      |\n\
+      \      |\n\
+      \     =========\n"
 
-full :: String
-full =
-  "\n\
-  \      _ _ _\n\
-  \      |    O\n\
-  \      |   /|\\\n\
-  \      |   / \\\n\
-  \      |\n\
-  \     =========\n"
+    arms :: String
+    arms =
+      "\n\
+      \      _ _ _\n\
+      \      |    O\n\
+      \      |   /|\\\n\
+      \      |\n\
+      \      |\n\
+      \     =========\n"
+
+    full :: String
+    full =
+      "\n\
+      \      _ _ _\n\
+      \      |    O\n\
+      \      |   /|\\\n\
+      \      |   / \\\n\
+      \      |\n\
+      \     =========\n"
 
 theApp :: M.App AppState e ()
 theApp =
