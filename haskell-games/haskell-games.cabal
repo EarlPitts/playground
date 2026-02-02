@@ -1,34 +1,35 @@
 cabal-version: 3.0
-
-name:           haskell-games
-version:        0.0.0
-build-type:     Simple
+name:          haskell-games
+version:       0.0.0
+build-type:    Simple
 
 common warnings
-    ghc-options: -Wall -Wno-name-shadowing
+  ghc-options: -Wall -Wno-name-shadowing
 
 library
-  import:           warnings
+  import:             warnings
   exposed-modules:
-      Minesweeper
-    , Hangman
-    , TicTacTui
-    , TicTacToe
-    , RockPaperScissors
-    , GuessTheNumber
-  hs-source-dirs:
-    src
+    GuessTheNumber
+    Hangman
+    Minesweeper
+    RockPaperScissors
+    TicTacToe
+    TicTacTui
+
+  hs-source-dirs:     src
   default-extensions:
-    DeriveFunctor
     ConstraintKinds
     DeriveAnyClass
+    DeriveFunctor
     DeriveGeneric
     FlexibleContexts
     GeneralizedNewtypeDeriving
     LambdaCase
     OverloadedRecordDot
+
   build-depends:
-      aeson
+    , aeson
+    , array
     , base
     , brick
     , bytestring
@@ -36,38 +37,39 @@ library
     , exceptions
     , haskeline
     , microlens
-    , microlens-th
     , microlens-mtl
+    , microlens-th
     , monad-loops
     , mtl
-    , split
     , random
     , req
+    , split
     , text
     , vector
     , vty
-  default-language: Haskell2010
+
+  default-language:   Haskell2010
 
 test-suite haskell-games-test
-    import:           warnings
-    other-modules:
-      GuessTheNumberSpec
-    default-language: Haskell2010
-    type:             exitcode-stdio-1.0
-    hs-source-dirs:   test
-    main-is:          Main.hs
-    build-depends:
-        base
-      , hspec
-      , QuickCheck
-      , haskell-games
-      , mtl
-    default-extensions:
-        DeriveFunctor
-      , OverloadedRecordDot
-      , BlockArguments
-      , DeriveAnyClass
-      , DeriveGeneric
-      , LambdaCase
-      , OverloadedStrings
-      , StrictData
+  import:             warnings
+  other-modules:      GuessTheNumberSpec
+  default-language:   Haskell2010
+  type:               exitcode-stdio-1.0
+  hs-source-dirs:     test
+  main-is:            Main.hs
+  build-depends:
+    , base
+    , haskell-games
+    , hspec
+    , mtl
+    , QuickCheck
+
+  default-extensions:
+    BlockArguments
+    DeriveAnyClass
+    DeriveFunctor
+    DeriveGeneric
+    LambdaCase
+    OverloadedRecordDot
+    OverloadedStrings
+    StrictData

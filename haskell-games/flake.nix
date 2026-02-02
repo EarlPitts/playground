@@ -28,6 +28,7 @@
               haskell-language-server
               hlint
               zlib
+              cabal-fmt
               # Add any system dependencies here
             ]
             ++ [
