@@ -40,18 +40,6 @@ newtype Board = Board
   }
   deriving (Eq, Show)
 
-type Coord = (Int,Int)
-data Grid = Array Coord Tile
-
-
-
-
-
-
-
-
-
-
 makeLenses 'AppState
 
 drawUI :: AppState -> [T.Widget ()]

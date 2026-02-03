@@ -9,10 +9,10 @@ common warnings
 library
   import:             warnings
   exposed-modules:
-    Minesweeper.Grid
-    Minesweeper.Game
     GuessTheNumber
     Hangman
+    Minesweeper.Game
+    Minesweeper.Grid
     RockPaperScissors
     TicTacToe
     TicTacTui
@@ -53,7 +53,10 @@ library
 
 test-suite haskell-games-test
   import:             warnings
-  other-modules:      GuessTheNumberSpec
+  other-modules:
+    GridSpec
+    GuessTheNumberSpec
+
   default-language:   Haskell2010
   type:               exitcode-stdio-1.0
   hs-source-dirs:     test

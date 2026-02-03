@@ -21,7 +21,9 @@ reveal :: Grid -> Coord -> Grid
 reveal g c = accum (\t _ -> revealTile t) g [(coord, ()) | coord <- go [] c]
   where
     go seen c' = case mineCount g c of
-      0 -> c' : (((neighborCoords g c') \\ seen) >>= go [c'])
+      0 ->
+        let ns = (neighborCoords g c')
+         in c' : ((ns \\ seen) >>= go (c' : seen <> ns))
       _ -> [c']
 
 isMine :: Tile -> Bool
@@ -54,9 +56,3 @@ neighbors g (r, c) = catMaybes $ (g !?) <$> ixs
         | x <- [succ, pred, id] <*> [r],
           y <- [succ, pred, id] <*> [c]
         ]
-
-arr :: Array (Int, Int) Int
-arr = array ((1, 1), (3, 3)) [((x, y), 5) | x <- [1 .. 3], y <- [1 .. 3]]
-
-arr' :: Array (Int, Int) Tile
-arr' = array ((1, 1), (3, 3)) [((x, y), if (x,y) == (2,2) then (Tile True False) else (Tile True True)) | x <- [1 .. 3], y <- [1 .. 3]]
