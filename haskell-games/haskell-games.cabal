@@ -9,10 +9,10 @@ common warnings
 library
   import:             warnings
   exposed-modules:
-    GuessTheNumber
-    Hangman
     Minesweeper.Game
     Minesweeper.Grid
+    GuessTheNumber
+    Hangman
     RockPaperScissors
     TicTacToe
     TicTacTui

@@ -1,7 +1,9 @@
 module Minesweeper.Grid where
 
+import Control.Monad
+import Control.Monad.State
 import Data.Array.IArray
-import Data.List (delete, intersect, (\\))
+import Data.List (delete, intersect)
 import Data.Maybe
 
 data Tile = Tile
@@ -18,16 +20,30 @@ mkGrid :: Coord -> [Tile] -> Grid
 mkGrid size = listArray ((1, 1), size)
 
 reveal :: Grid -> Coord -> Grid
-reveal g c = accum (\t _ -> revealTile t) g [(coord, ()) | coord <- go [] c]
+reveal g c = accum (\t _ -> revealTile t) g [(coord, ()) | coord <- evalState (go c) []]
   where
-    go seen c' = case mineCount g c of
-      0 ->
-        let ns = (neighborCoords g c')
-         in c' : ((ns \\ seen) >>= go (c' : seen <> ns))
-      _ -> [c']
+    go :: Coord -> State [Coord] [Coord]
+    go c' =
+      if (g ! c') == (Tile False True)
+        then pure [c']
+        else do
+          seen <- get
+          if c' `elem` seen
+            then pure []
+            else case mineCount g c' of
+              0 -> do
+                modify (c' :)
+                let ns = neighborCoords g c'
+                cs <- foldM (\acc n -> (acc ++) <$> go n) [] ns
+                pure $ c' : cs
+              _ -> pure [c']
 
 isMine :: Tile -> Bool
 isMine t = t.mine
+
+mineUncovered :: Grid -> Bool
+mineUncovered g =
+  any (\t -> t == (Tile False True)) $ elems g
 
 revealTile :: Tile -> Tile
 revealTile t = t {covered = False}

@@ -12,7 +12,7 @@ import Brick.Widgets.Table
 import Control.Monad
 import Control.Monad.Identity
 import qualified Data.Array as A
-import Data.Array.IArray (elems)
+import Data.Array.IArray (assocs)
 import Data.List
 import Data.List.Split (divvy)
 import Data.Maybe
@@ -32,19 +32,68 @@ data AppState = AppState
 makeLenses 'AppState
 
 drawUI :: AppState -> [T.Widget ()]
-drawUI s = [center $ renderTable $ drawGrid s._board s._coord]
+drawUI s =
+  if s._ended
+    then [str "ended", center $ renderTable $ drawGrid s._board s._coord]
+    else [center $ renderTable $ drawGrid s._board s._coord]
 
 drawGrid :: Grid -> Coord -> Table ()
-drawGrid g selected = table $ divvy 5 5 $ f <$> (elems g)
+drawGrid g selected = table $ divvy 5 5 $ highlight $ f <$> (assocs g)
   where
-    f (Tile True _) = str "    "
-    f (Tile False True) = str "  X  "
-    f (Tile False False) = str $ "  " <> (show $ mineCount g selected) <> "  "
+    f (coord, (Tile True _)) = str "    "
+    f (coord, (Tile False True)) = str "  X  "
+    f (coord, (Tile False False)) = str $ "  " <> (show $ mineCount g coord) <> "  "
+    highlight = modifyIdx (5 * (pred $ fst selected) + (pred $ snd selected)) (withAttr highlighted)
 
-appEvent = undefined
+modifyIdx :: Int -> (a -> a) -> [a] -> [a]
+modifyIdx n f as = take (n) as <> [f (as !! n)] <> drop (n + 1) as
+
+up, down, left, right :: EventM () AppState ()
+up = do
+  (r, c) <- use coord
+  when (r > 1) (coord .= ((r - 1), c))
+down = do
+  (r, c) <- use coord
+  when (r < 10) (coord .= ((r + 1), c))
+left = do
+  (r, c) <- use coord
+  when (c > 1) (coord .= (r, (c - 1)))
+right = do
+  (r, c) <- use coord
+  when (c < 5) (coord .= (r, (c + 1)))
+
+appEvent :: T.BrickEvent () e -> T.EventM () AppState ()
+appEvent (T.VtyEvent e) = case e of
+  V.EvKey V.KLeft [] -> left
+  V.EvKey (V.KChar 'h') [] -> left
+  V.EvKey V.KRight [] -> right
+  V.EvKey (V.KChar 'l') [] -> right
+  V.EvKey V.KUp [] -> up
+  V.EvKey (V.KChar 'k') [] -> up
+  V.EvKey V.KDown [] -> down
+  V.EvKey (V.KChar 'j') [] -> down
+  V.EvKey (V.KChar ' ') [] -> select
+  V.EvKey V.KEsc [] -> M.halt
+  V.EvKey (V.KChar 'q') [] -> M.halt
+  _ -> return ()
+appEvent _ = return ()
+
+select :: T.EventM () AppState ()
+select = do
+  g <- use board
+  coord <- use coord
+  board .= reveal g coord
+  g' <- use board
+  if mineUncovered g' then ended .= True else pure ()
+
+highlighted :: A.AttrName
+highlighted = attrName "highlighted"
 
 theMap :: A.AttrMap
-theMap = A.attrMap V.defAttr []
+theMap =
+  A.attrMap
+    V.defAttr
+    [(highlighted, V.black `on` V.yellow)]
 
 theApp :: M.App AppState e ()
 theApp =
@@ -57,9 +106,12 @@ theApp =
     }
 
 initBoard :: StdGen -> Grid
-initBoard gen = mkGrid (10, 5) $ take 50 $ Tile False <$> mine
+initBoard gen = mkGrid (10, 5) $ take 50 $ Tile True <$> mine
   where
-    mine = uniforms gen :: [Bool]
+    (mine, _) = uniformShuffleList (replicate 6 True <> replicate 44 False) gen
+
+-- mine = repeat False
+-- mine = uniforms gen :: [Bool]
 
 initialState :: StdGen -> AppState
 initialState gen = AppState (initBoard gen) False (4, 2)

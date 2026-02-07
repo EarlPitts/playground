@@ -12,6 +12,6 @@ gridSpec = describe "reveal" do
   it "uncovers everything if there are no mines" $
     let covered = Tile True False
         uncovered = revealTile covered
-        coveredGrid = mkGrid (5, 5) (replicate 25 covered)
-        uncoveredGrid = mkGrid (5, 5) (replicate 25 uncovered)
+        coveredGrid = mkGrid (10, 5) (replicate 50 covered)
+        uncoveredGrid = mkGrid (10, 5) (replicate 50 uncovered)
      in (reveal coveredGrid (3, 3)) `shouldBe` uncoveredGrid
