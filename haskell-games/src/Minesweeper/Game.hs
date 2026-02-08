@@ -13,6 +13,7 @@ import Control.Monad
 import Control.Monad.Identity
 import qualified Data.Array as A
 import Data.Array.IArray (assocs)
+import Data.Bifunctor
 import Data.List
 import Data.List.Split (divvy)
 import Data.Maybe
@@ -29,21 +30,31 @@ data AppState = AppState
     _coord :: Coord
   }
 
+data GridSize = Small | Medium | Large deriving (Show, Eq)
+
 makeLenses 'AppState
 
 drawUI :: AppState -> [T.Widget ()]
 drawUI s =
   if s._ended
-    then [str "ended", center $ renderTable $ drawGrid s._board s._coord]
+    then [str "ended", center $ renderTable $ drawGrid (revealMines s._board) s._coord]
     else [center $ renderTable $ drawGrid s._board s._coord]
 
 drawGrid :: Grid -> Coord -> Table ()
-drawGrid g selected = table $ divvy 5 5 $ highlight $ f <$> (assocs g)
+drawGrid g selected = table $ divvy cols cols $ highlight $ f <$> (assocs g)
   where
-    f (coord, (Tile True _)) = str "    "
-    f (coord, (Tile False True)) = str "  X  "
-    f (coord, (Tile False False)) = str $ "  " <> (show $ mineCount g coord) <> "  "
-    highlight = modifyIdx (5 * (pred $ fst selected) + (pred $ snd selected)) (withAttr highlighted)
+    f (_, (Tile True _)) = (str " ### ")
+    f (_, (Tile False True)) = str "  X  "
+    f (coord, (Tile False False)) =
+      str $
+        "  "
+          <> if mineCount g coord == 0
+            then " "
+            else
+              (show $ mineCount g coord)
+                <> "  "
+    highlight = modifyIdx (cols * (pred $ fst selected) + (pred $ snd selected)) (withAttr highlighted)
+    (_, cols) = snd $ A.bounds g
 
 modifyIdx :: Int -> (a -> a) -> [a] -> [a]
 modifyIdx n f as = take (n) as <> [f (as !! n)] <> drop (n + 1) as
@@ -54,13 +65,17 @@ up = do
   when (r > 1) (coord .= ((r - 1), c))
 down = do
   (r, c) <- use coord
-  when (r < 10) (coord .= ((r + 1), c))
+  g <- use board
+  let (maxR, _) = snd $ A.bounds g
+  when (r < maxR) (coord .= ((r + 1), c))
 left = do
   (r, c) <- use coord
   when (c > 1) (coord .= (r, (c - 1)))
 right = do
   (r, c) <- use coord
-  when (c < 5) (coord .= (r, (c + 1)))
+  g <- use board
+  let (_, maxC) = snd $ A.bounds g
+  when (c < maxC) (coord .= (r, (c + 1)))
 
 appEvent :: T.BrickEvent () e -> T.EventM () AppState ()
 appEvent (T.VtyEvent e) = case e of
@@ -89,6 +104,9 @@ select = do
 highlighted :: A.AttrName
 highlighted = attrName "highlighted"
 
+cover :: A.AttrName
+cover = attrName "highlighted"
+
 theMap :: A.AttrMap
 theMap =
   A.attrMap
@@ -105,16 +123,19 @@ theApp =
       M.appAttrMap = const theMap
     }
 
-initBoard :: StdGen -> Grid
-initBoard gen = mkGrid (10, 5) $ take 50 $ Tile True <$> mine
+initBoard :: StdGen -> GridSize -> Grid
+initBoard gen = \case
+  Small -> mkGrid (10, 5) $ Tile True <$> (shuffle 6 44)
+  Medium -> mkGrid (10, 15) $ Tile True <$> (shuffle 18 132)
+  Large -> mkGrid (15, 20) $ Tile True <$> (shuffle 35 265)
   where
-    (mine, _) = uniformShuffleList (replicate 6 True <> replicate 44 False) gen
-
--- mine = repeat False
--- mine = uniforms gen :: [Bool]
+    shuffle mineCnt rest = fst $ uniformShuffleList (replicate mineCnt True <> replicate rest False) gen
 
 initialState :: StdGen -> AppState
-initialState gen = AppState (initBoard gen) False (4, 2)
+initialState gen = AppState g False middle
+  where
+    g = initBoard gen Large
+    middle = bimap (`div` 2) (succ . (flip div $ 2)) $ snd $ A.bounds g
 
 main :: IO ()
 main = do
