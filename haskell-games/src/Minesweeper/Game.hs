@@ -7,17 +7,13 @@ import Brick
 import qualified Brick.AttrMap as A
 import qualified Brick.Main as M
 import qualified Brick.Types as T
-import Brick.Widgets.Center (center)
+import Brick.Widgets.Center (center, hCenter)
 import Brick.Widgets.Table
 import Control.Monad
-import Control.Monad.Identity
 import qualified Data.Array as A
 import Data.Array.IArray (assocs)
 import Data.Bifunctor
-import Data.List
 import Data.List.Split (divvy)
-import Data.Maybe
-import Debug.Trace (traceShowId)
 import qualified Graphics.Vty as V
 import Lens.Micro.Mtl
 import Lens.Micro.TH
@@ -37,7 +33,7 @@ makeLenses 'AppState
 drawUI :: AppState -> [T.Widget ()]
 drawUI s =
   if s._ended
-    then [str "ended", center $ renderTable $ drawGrid (revealMines s._board) s._coord]
+    then [center $ ((hCenter $ str ":(") <=> (hCenter $ renderTable $ drawGrid (revealMines s._board) s._coord))]
     else [center $ renderTable $ drawGrid s._board s._coord]
 
 drawGrid :: Grid -> Coord -> Table ()
@@ -104,9 +100,6 @@ select = do
 highlighted :: A.AttrName
 highlighted = attrName "highlighted"
 
-cover :: A.AttrName
-cover = attrName "highlighted"
-
 theMap :: A.AttrMap
 theMap =
   A.attrMap
@@ -129,12 +122,13 @@ initBoard gen = \case
   Medium -> mkGrid (10, 15) $ Tile True <$> (shuffle 18 132)
   Large -> mkGrid (15, 20) $ Tile True <$> (shuffle 35 265)
   where
-    shuffle mineCnt rest = fst $ uniformShuffleList (replicate mineCnt True <> replicate rest False) gen
+    shuffle mineCnt rest =
+      fst $ uniformShuffleList (replicate mineCnt True <> replicate rest False) gen
 
 initialState :: StdGen -> AppState
 initialState gen = AppState g False middle
   where
-    g = initBoard gen Large
+    g = initBoard gen Small
     middle = bimap (`div` 2) (succ . (flip div $ 2)) $ snd $ A.bounds g
 
 main :: IO ()
