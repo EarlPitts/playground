@@ -9,6 +9,7 @@ common warnings
 library
   import:             warnings
   exposed-modules:
+    Snake.Main
     Snake.Snake
     Minesweeper.Game
     Minesweeper.Grid

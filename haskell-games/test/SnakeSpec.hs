@@ -24,7 +24,7 @@ snakeSpec = describe "move" do
     let snake = testSnake [(1, 1)]
     let expected = testSnake [(2, 1)]
 
-    let newSnake = move snake D
+    let newSnake = move D snake
 
     newSnake `shouldBe` expected
 
@@ -32,7 +32,7 @@ snakeSpec = describe "move" do
     let snake = testSnake [(2, 1), (1, 1)]
     let expected = testSnake [(2, 2), (2, 1)]
 
-    let newSnake = move snake R
+    let newSnake = move R snake
 
     newSnake `shouldBe` expected
 
@@ -40,6 +40,6 @@ snakeSpec = describe "move" do
     property $
       \snakeCoords (dirs :: [Dir]) -> do
         let snake = snakeFromList snakeCoords
-        let newSnake = foldr (flip move) snake dirs
+        let newSnake = foldr move snake dirs
 
         snakeLength snake `shouldBe` snakeLength newSnake

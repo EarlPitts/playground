@@ -16,9 +16,9 @@ snakeFromList = fromList . fmap (uncurry V2) . NE.toList
 snakeLength :: Snake -> Int
 snakeLength = Data.Sequence.length
 
-move :: Snake -> Dir -> Snake
-move ((currHead :<| rest) :|> _) dir = (newHead currHead dir) :<| currHead :<| rest
-move (currHead :<| rest) dir = (newHead currHead dir) :<| rest
+move :: Dir -> Snake -> Snake
+move dir ((currHead :<| rest) :|> _) = (newHead currHead dir) :<| currHead :<| rest
+move dir (currHead :<| rest) = (newHead currHead dir) :<| rest
 
 newHead :: Coord -> Dir -> Coord
 newHead (V2 x y) = \case
