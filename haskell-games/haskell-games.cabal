@@ -9,6 +9,7 @@ common warnings
 library
   import:             warnings
   exposed-modules:
+    Snake.Snake
     Minesweeper.Game
     Minesweeper.Grid
     GuessTheNumber
@@ -37,6 +38,7 @@ library
     , containers
     , exceptions
     , haskeline
+    , linear
     , microlens
     , microlens-mtl
     , microlens-th
@@ -56,6 +58,7 @@ test-suite haskell-games-test
   other-modules:
     GridSpec
     GuessTheNumberSpec
+    SnakeSpec
 
   default-language:   Haskell2010
   type:               exitcode-stdio-1.0
