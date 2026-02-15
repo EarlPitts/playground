@@ -5,12 +5,14 @@ module Snake.Main where
 
 import Brick
 import qualified Brick.AttrMap as A
+import Brick.BChan
 import qualified Brick.Main as M
 import qualified Brick.Types as T
 import qualified Brick.Widgets.Border as B
 import qualified Brick.Widgets.Border.Style as BS
 import Brick.Widgets.Center (center, hCenter)
 import Brick.Widgets.Table
+import Control.Concurrent
 import Control.Monad
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.Array as A
@@ -19,7 +21,9 @@ import Data.Bifunctor
 import qualified Data.List.NonEmpty as NE
 import Data.List.Split (divvy)
 import Data.Sequence (Seq ((:<|), (:|>)), index, singleton)
+import Graphics.Vty
 import qualified Graphics.Vty as V
+import Graphics.Vty.Platform.Unix (mkVty)
 import Lens.Micro ((^.))
 import Lens.Micro.Mtl
 import Lens.Micro.TH
@@ -30,13 +34,16 @@ import System.Random
 data AppState = AppState
   { _snake :: Snake,
     _food :: Food,
-    _ended :: Bool
+    _ended :: Bool,
+    _counter :: Int
   }
   deriving (Show)
 
 makeLenses 'AppState
 
 debug = True
+
+data Tick = Tick
 
 drawUI :: AppState -> [T.Widget ()]
 drawUI s =
@@ -50,8 +57,8 @@ drawUI s =
         else [center (drawGrid s)]
 
 addDebugInfo :: AppState -> [T.Widget ()] -> [T.Widget ()]
-addDebugInfo (AppState s f e) ws =
-  (vBox $ [str $ show s, str $ show f, str $ show e]) : ws
+addDebugInfo (AppState s f e cnt) ws =
+  (vBox $ [str $ show s, str $ show f, str $ show e, str $ show cnt]) : ws
 
 drawGrid :: AppState -> T.Widget ()
 drawGrid s =
@@ -94,7 +101,7 @@ proceed dir = do
     then ended .= True
     else pure ()
 
-appEvent :: T.BrickEvent () e -> T.EventM () AppState ()
+appEvent :: T.BrickEvent () Tick -> T.EventM () AppState ()
 appEvent (T.VtyEvent e) = case e of
   V.EvKey V.KLeft [] -> left
   V.EvKey (V.KChar 'h') [] -> left
@@ -107,6 +114,7 @@ appEvent (T.VtyEvent e) = case e of
   V.EvKey V.KEsc [] -> M.halt
   V.EvKey (V.KChar 'q') [] -> M.halt
   _ -> return ()
+appEvent (T.AppEvent Tick) = counter %= succ
 appEvent _ = return ()
 
 snakeAttr :: A.AttrName
@@ -127,7 +135,7 @@ theMap =
       (foodAttr, V.black `on` V.red)
     ]
 
-theApp :: M.App AppState e ()
+theApp :: M.App AppState Tick ()
 theApp =
   M.App
     { M.appDraw = drawUI,
@@ -142,9 +150,14 @@ initState =
   AppState
     { _snake = snakeFromList (NE.fromList [(3, 1), (2, 1), (1, 1)]),
       _food = V2 8 8,
-      _ended = False
+      _ended = False,
+      _counter = 0
     }
 
 main :: IO ()
 main = do
-  void $ M.defaultMain theApp initState
+  chan <- newBChan 10
+  _ <- forkIO $ forever $ (writeBChan chan Tick >> threadDelay 1000000)
+  let buildVty = mkVty Graphics.Vty.defaultConfig
+  initialVty <- buildVty
+  void $ customMain initialVty buildVty (Just chan) theApp initState

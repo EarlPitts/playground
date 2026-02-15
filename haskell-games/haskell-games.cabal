@@ -51,6 +51,7 @@ library
     , text
     , vector
     , vty
+    , vty-unix
 
   default-language:   Haskell2010
 
