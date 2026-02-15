@@ -10,17 +10,12 @@ import qualified Brick.Main as M
 import qualified Brick.Types as T
 import qualified Brick.Widgets.Border as B
 import qualified Brick.Widgets.Border.Style as BS
-import Brick.Widgets.Center (center, hCenter)
-import Brick.Widgets.Table
+import Brick.Widgets.Center (center)
 import Control.Concurrent
 import Control.Monad
 import Control.Monad.IO.Class (liftIO)
-import qualified Data.Array as A
-import Data.Array.IArray (assocs)
-import Data.Bifunctor
 import qualified Data.List.NonEmpty as NE
-import Data.List.Split (divvy)
-import Data.Sequence (Seq ((:<|), (:|>)), index, singleton)
+import Data.Sequence (Seq ((:<|)), index, singleton)
 import Graphics.Vty
 import qualified Graphics.Vty as V
 import Graphics.Vty.Platform.Unix (mkVty)
@@ -35,7 +30,7 @@ data AppState = AppState
   { _snake :: Snake,
     _food :: Food,
     _ended :: Bool,
-    _counter :: Int
+    _dir :: Dir
   }
   deriving (Show)
 
@@ -77,13 +72,11 @@ drawGrid s =
               else (if (V2 x y) == s ^. food then (withAttr foodAttr $ str "` ") else (str "  "))
           )
 
-snakeHead (h :<| _) = h
-
 up, down, left, right :: EventM () AppState ()
-up = proceed U
-down = proceed D
-left = proceed L
-right = proceed R
+up = dir .= U
+down = dir .= D
+left = dir .= L
+right = dir .= R
 
 proceed dir = do
   currFood <- use food
@@ -114,7 +107,7 @@ appEvent (T.VtyEvent e) = case e of
   V.EvKey V.KEsc [] -> M.halt
   V.EvKey (V.KChar 'q') [] -> M.halt
   _ -> return ()
-appEvent (T.AppEvent Tick) = counter %= succ
+appEvent (T.AppEvent Tick) = use dir >>= proceed
 appEvent _ = return ()
 
 snakeAttr :: A.AttrName
@@ -151,13 +144,13 @@ initState =
     { _snake = snakeFromList (NE.fromList [(3, 1), (2, 1), (1, 1)]),
       _food = V2 8 8,
       _ended = False,
-      _counter = 0
+      _dir = D
     }
 
 main :: IO ()
 main = do
   chan <- newBChan 10
-  _ <- forkIO $ forever $ (writeBChan chan Tick >> threadDelay 1000000)
-  let buildVty = mkVty Graphics.Vty.defaultConfig
+  _ <- forkIO $ forever $ (writeBChan chan Tick >> threadDelay 100000)
+  let buildVty = mkVty defaultConfig
   initialVty <- buildVty
   void $ customMain initialVty buildVty (Just chan) theApp initState
