@@ -12,6 +12,7 @@ import qualified Brick.Widgets.Border.Style as BS
 import Brick.Widgets.Center (center, hCenter)
 import Brick.Widgets.Table
 import Control.Monad
+import Control.Monad.IO.Class (liftIO)
 import qualified Data.Array as A
 import Data.Array.IArray (assocs)
 import Data.Bifunctor
@@ -29,17 +30,28 @@ import System.Random
 data AppState = AppState
   { _snake :: Snake,
     _food :: Food,
-    _eaten :: [Food]
+    _ended :: Bool
   }
+  deriving (Show)
 
 makeLenses 'AppState
 
-drawUI :: AppState -> [T.Widget ()]
-drawUI s = [center (drawGrid s)]
+debug = True
 
-height, width :: Int
-height = 10
-width = 10
+drawUI :: AppState -> [T.Widget ()]
+drawUI s =
+  if debug
+    then addDebugInfo s game
+    else game
+  where
+    game =
+      if s ^. ended
+        then [center $ str "Game Over"]
+        else [center (drawGrid s)]
+
+addDebugInfo :: AppState -> [T.Widget ()] -> [T.Widget ()]
+addDebugInfo (AppState s f e) ws =
+  (vBox $ [str $ show s, str $ show f, str $ show e]) : ws
 
 drawGrid :: AppState -> T.Widget ()
 drawGrid s =
@@ -71,9 +83,16 @@ proceed dir = do
   s <- use snake
   if ate s currFood
     then do
-      food .= V2 1 1
-      snake .= ((move dir (singleton (snakeHead s))) <> s)
+      let newSnake = ((move dir (singleton (snakeHead s))) <> s)
+      snake .= newSnake
+      let empty = emptyCells newSnake
+      foodIdx <- liftIO $ randomRIO (0, length empty)
+      food .= empty !! foodIdx
     else snake %= (move dir)
+  s <- use snake
+  if collision s
+    then ended .= True
+    else pure ()
 
 appEvent :: T.BrickEvent () e -> T.EventM () AppState ()
 appEvent (T.VtyEvent e) = case e of
@@ -123,7 +142,7 @@ initState =
   AppState
     { _snake = snakeFromList (NE.fromList [(3, 1), (2, 1), (1, 1)]),
       _food = V2 8 8,
-      _eaten = []
+      _ended = False
     }
 
 main :: IO ()
