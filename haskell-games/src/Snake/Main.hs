@@ -10,12 +10,12 @@ import qualified Brick.Main as M
 import qualified Brick.Types as T
 import qualified Brick.Widgets.Border as B
 import qualified Brick.Widgets.Border.Style as BS
-import Brick.Widgets.Center (center)
+import Brick.Widgets.Center (center, hCenter)
 import Control.Concurrent
 import Control.Monad
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.List.NonEmpty as NE
-import Data.Sequence.NonEmpty (singleton, index)
+import Data.Sequence.NonEmpty (index, singleton)
 import Graphics.Vty
 import qualified Graphics.Vty as V
 import Graphics.Vty.Platform.Unix (mkVty)
@@ -30,14 +30,15 @@ data AppState = AppState
   { _snake :: Snake,
     _food :: Food,
     _ended :: Bool,
-    _dir :: Dir
+    _dir :: Dir,
+    _score :: Int
   }
   deriving (Show)
 
 makeLenses 'AppState
 
 debug :: Bool
-debug = True
+debug = False
 
 data Tick = Tick
 
@@ -50,11 +51,21 @@ drawUI s =
     game =
       if s ^. ended
         then [center $ str "Game Over"]
-        else [center (drawGrid s)]
+        else [center $ padRight (Pad 2) (drawScore (s ^. score)) <+> (drawGrid s)]
 
 addDebugInfo :: AppState -> [T.Widget ()] -> [T.Widget ()]
-addDebugInfo (AppState s f e cnt) ws =
+addDebugInfo (AppState s f e cnt _) ws =
   (vBox $ [str $ show s, str $ show f, str $ show e, str $ show cnt]) : ws
+
+drawScore :: Int -> T.Widget ()
+drawScore score =
+  hLimit 7 $
+    withBorderStyle BS.unicodeBold $
+      B.borderWithLabel (str "Score") $
+        hCenter $
+          padAll 1 $
+            str $
+              show score
 
 drawGrid :: AppState -> T.Widget ()
 drawGrid s =
@@ -85,6 +96,7 @@ proceed dir = do
   s <- use snake
   if ate s currFood
     then do
+      score %= succ
       let newSnake = ((move dir (singleton (snakeHead s))) <> s)
       snake .= newSnake
       let empty = emptyCells newSnake
@@ -146,13 +158,14 @@ initState =
     { _snake = snakeFromList (NE.fromList [(3, 1), (2, 1), (1, 1)]),
       _food = V2 8 8,
       _ended = False,
-      _dir = D
+      _dir = D,
+      _score = 0
     }
 
 main :: IO ()
 main = do
   chan <- newBChan 10
-  _ <- forkIO $ forever $ (writeBChan chan Tick >> threadDelay 100000)
+  _ <- forkIO $ forever $ (writeBChan chan Tick >> threadDelay 140000)
   let buildVty = mkVty defaultConfig
   initialVty <- buildVty
   void $ customMain initialVty buildVty (Just chan) theApp initState
