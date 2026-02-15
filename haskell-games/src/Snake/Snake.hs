@@ -2,12 +2,13 @@ module Snake.Snake where
 
 import Data.Foldable
 import Data.List ((\\))
-import qualified Data.List.NonEmpty as NE
-import Data.Sequence
+import qualified Data.List.NonEmpty as NEL
+import Data.Sequence (Seq ((:|>)))
+import Data.Sequence.NonEmpty as NES
 import Lens.Micro ((^.))
 import Linear
 
-type Snake = Seq Coord
+type Snake = NESeq Coord
 
 type Food = Coord
 
@@ -20,31 +21,30 @@ height = 10
 width = 10
 
 emptyCells :: Snake -> [Coord]
-emptyCells s =
-  (V2 <$> [0 .. height] <*> [0 .. width]) \\ (toList s)
+emptyCells s = (V2 <$> [0 .. height] <*> [0 .. width]) \\ (toList s)
 
-snakeFromList :: NE.NonEmpty (Int, Int) -> Snake
-snakeFromList = fromList . fmap (uncurry V2) . NE.toList
+snakeFromList :: NEL.NonEmpty (Int, Int) -> Snake
+snakeFromList = fromList . fmap (uncurry V2)
 
 snakeLength :: Snake -> Int
-snakeLength = Data.Sequence.length
+snakeLength = NES.length
 
 snakeHead :: Snake -> Coord
-snakeHead (h :<| _) = h
+snakeHead = NES.head
 
 move :: Dir -> Snake -> Snake
-move dir ((currHead :<| rest) :|> _) = (newHead currHead dir) :<| currHead :<| rest
-move dir (currHead :<| rest) = (newHead currHead dir) :<| rest
+move dir (currHead :<|| (rest :|> _)) = (newHead currHead dir) <| (singleton currHead) |>< rest
+move dir (currHead :<|| rest) = (newHead currHead dir) :<|| rest
 
 digested :: Snake -> [Food] -> Bool
 digested _ [] = False
-digested (_ :|> rear) (f : _) = rear == f
+digested (_ :||> rear) (f : _) = rear == f
 
 ate :: Snake -> Food -> Bool
-ate (h :<| _) f = h == f
+ate (h :<|| _) f = h == f
 
 collision :: Snake -> Bool
-collision (h :<| rest) =
+collision (h :<|| rest) =
   h `elem` rest
     || h ^. _x < 0
     || h ^. _x > height

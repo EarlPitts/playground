@@ -45,6 +45,7 @@ library
     , microlens-th
     , monad-loops
     , mtl
+    , nonempty-containers
     , random
     , req
     , split

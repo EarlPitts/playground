@@ -15,7 +15,7 @@ import Control.Concurrent
 import Control.Monad
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.List.NonEmpty as NE
-import Data.Sequence (Seq ((:<|)), index, singleton)
+import Data.Sequence.NonEmpty (singleton, index)
 import Graphics.Vty
 import qualified Graphics.Vty as V
 import Graphics.Vty.Platform.Unix (mkVty)
@@ -36,6 +36,7 @@ data AppState = AppState
 
 makeLenses 'AppState
 
+debug :: Bool
 debug = True
 
 data Tick = Tick
@@ -78,6 +79,7 @@ down = dir .= D
 left = dir .= L
 right = dir .= R
 
+proceed :: Dir -> EventM () AppState ()
 proceed dir = do
   currFood <- use food
   s <- use snake
