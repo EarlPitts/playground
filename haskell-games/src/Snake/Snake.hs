@@ -6,6 +6,8 @@ import Linear
 
 type Snake = Seq Coord
 
+type Food = Coord
+
 type Coord = V2 Int
 
 data Dir = L | R | D | U deriving (Show)
@@ -19,6 +21,13 @@ snakeLength = Data.Sequence.length
 move :: Dir -> Snake -> Snake
 move dir ((currHead :<| rest) :|> _) = (newHead currHead dir) :<| currHead :<| rest
 move dir (currHead :<| rest) = (newHead currHead dir) :<| rest
+
+digested :: Snake -> [Food] -> Bool
+digested _ [] = False
+digested (_ :|> rear) (f : _) = rear == f
+
+ate :: Snake -> Food -> Bool
+ate (h :<| _) f = h == f
 
 newHead :: Coord -> Dir -> Coord
 newHead (V2 x y) = \case
