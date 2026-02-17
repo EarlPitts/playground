@@ -9,6 +9,8 @@ common warnings
 library
   import:             warnings
   exposed-modules:
+    Sudoku.Main
+    Sudoku.Sudoku
     Snake.Main
     Snake.Snake
     Minesweeper.Game
