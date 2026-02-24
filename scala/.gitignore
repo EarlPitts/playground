@@ -3,7 +3,9 @@
 .bsp/
 .metals/
 .scala-build/
-project/
+project/metals.sbt
+project/target
+project/project
 resources/
 target/
 fpinscala
