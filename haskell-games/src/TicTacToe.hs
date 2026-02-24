@@ -8,7 +8,7 @@ import Text.Read (readMaybe)
 
 data Tile = X | O | Empty deriving (Eq)
 
-data Board = Board [(Int, Tile)] deriving (Eq)
+newtype Board = Board [(Int, Tile)] deriving (Eq)
 
 instance Show Tile where
   show X = "X"
@@ -47,7 +47,7 @@ updateState tile n (Board ts) =
 
 getAvailable :: Board -> [Int]
 getAvailable (Board ts) =
-  fmap fst $ filter (\(_, tile) -> tile == Empty) ts
+  fst <$> filter (\(_, tile) -> tile == Empty) ts
 
 computerStep :: Board -> IO Board
 computerStep b = do

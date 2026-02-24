@@ -19,7 +19,7 @@ import System.Random
 
 data Tile = X | O | Empty deriving (Eq)
 
-data Board = Board {tiles :: [Tile]} deriving (Eq)
+newtype Board = Board {tiles :: [Tile]} deriving (Eq)
 
 data Pos = Pos {row :: Int, col :: Int} deriving (Show, Eq)
 
@@ -42,25 +42,25 @@ instance Show Tile where
 
 drawUI :: AppState -> [Widget ()]
 drawUI s = case s._winner of
-  Just Human -> [center $ txt "You won!" <=> (renderTable $ renderGrid s._board s._pos)]
-  Just Computer -> [center $ txt "You lost :(" <=> (renderTable $ renderGrid s._board s._pos)]
-  Just Nobody -> [center $ txt "Draw" <=> (renderTable $ renderGrid s._board s._pos)]
+  Just Human -> [center $ txt "You won!" <=> renderTable (renderGrid s._board s._pos)]
+  Just Computer -> [center $ txt "You lost :(" <=> renderTable (renderGrid s._board s._pos)]
+  Just Nobody -> [center $ txt "Draw" <=> renderTable (renderGrid s._board s._pos)]
   Nothing -> [center $ renderTable $ renderGrid s._board s._pos]
 
 modifyIdx :: Int -> (a -> a) -> [a] -> [a]
-modifyIdx n f as = take (n) as <> [f (as !! n)] <> drop (n + 1) as
+modifyIdx n f as = take n as <> [f (as !! n)] <> drop (n + 1) as
 
 renderGrid :: Board -> Pos -> Table ()
 renderGrid (Board ts) (Pos r c) =
   table $
     divvy 3 3 $
       highlight $
-        ((padLeftRight 1) . txt . pack . show) <$> ts
+        padLeftRight 1 . txt . pack . show <$> ts
   where
     highlight = modifyIdx (3 * r + c) (withAttr highlighted)
 
 initBoard :: Board
-initBoard = Board $ (replicate 9 Empty)
+initBoard = Board (replicate 9 Empty)
 
 initialState :: StdGen -> AppState
 initialState gen = AppState initBoard (Pos 1 1) gen Nothing
@@ -122,20 +122,20 @@ select = do
   s@(AppState (Board ts) p@(Pos r c) gen w) <- get
   case currentTile s of
     Empty -> do
-      let newState = (AppState (Board (modifyIdx (3 * r + c) (const X) ts)) p gen w)
+      let newState = AppState (Board (modifyIdx (3 * r + c) (const X) ts)) p gen w
       if checkWin newState._board X
         then do
           put newState
-          winner %= (const $ Just Human)
+          winner %= const (Just Human)
         else do
           case computerStep newState._board gen of
-            Nothing -> winner %= (const $ Just Nobody)
+            Nothing -> winner %= const (Just Nobody)
             Just (newGen, newBoard) ->
               let newerState = AppState newBoard p newGen w
                in if checkWin newerState._board O
                     then do
                       put newerState
-                      winner %= (const $ Just Computer)
+                      winner %= const (Just Computer)
                     else put newerState
     _ -> return ()
 
@@ -152,14 +152,11 @@ theApp =
 updateState :: Tile -> Int -> Board -> Board
 updateState tile n (Board ts) =
   Board $
-    fmap snd $
-      fmap
-        (\(n', t') -> if n == n' then (n, tile) else (n', t'))
-        (zip [0 ..] ts)
+    fmap (snd . (\(n', t') -> if n == n' then (n, tile) else (n', t'))) (zip [0 ..] ts)
 
 getAvailable :: Board -> [Int]
 getAvailable (Board ts) =
-  fmap fst $ filter (\(_, tile) -> tile == Empty) (zip [0 ..] ts)
+  fst <$> filter (\(_, tile) -> tile == Empty) (zip [0 ..] ts)
 
 computerStep :: Board -> StdGen -> Maybe (StdGen, Board)
 computerStep b gen =

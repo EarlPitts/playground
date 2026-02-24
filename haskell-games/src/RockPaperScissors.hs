@@ -50,8 +50,8 @@ main = do
   putStrLn "Bye!"
 
 updateScore :: Winner -> Score -> Score
-updateScore Human (Score h c) = (Score (succ h) c)
-updateScore Computer (Score h c) = (Score h (succ c))
+updateScore Human (Score h c) = Score (succ h) c
+updateScore Computer (Score h c) = Score h (succ c)
 updateScore Draw score = score
 
 finishRound :: Score -> Winner -> IO Score

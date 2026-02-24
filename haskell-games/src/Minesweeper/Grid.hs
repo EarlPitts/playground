@@ -23,7 +23,7 @@ reveal :: Grid -> Coord -> Grid
 reveal g c = accum (\t _ -> revealTile t) g [(coord, ()) | coord <- evalState (go c) []]
   where
     go c' =
-      if (g ! c') == (Tile True True)
+      if (g ! c') == Tile True True
         then pure [c']
         else do
           seen <- get
@@ -45,7 +45,7 @@ isMine t = t.mine
 
 mineUncovered :: Grid -> Bool
 mineUncovered g =
-  any (\t -> t == (Tile False True)) $ elems g
+  any (\t -> t == Tile False True) $ elems g
 
 revealTile :: Tile -> Tile
 revealTile t = t {covered = False}
@@ -54,12 +54,12 @@ mineCount :: Grid -> Coord -> Int
 mineCount g = length . filter isMine . neighbors g
 
 neighborCoords :: Grid -> Coord -> [Coord]
-neighborCoords g (r, c) = intersect ixs (indices g)
+neighborCoords g (r, c) = ixs `intersect` indices g
   where
     ixs = [(r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1)]
 
 neighbors :: Grid -> Coord -> [Tile]
-neighbors g (r, c) = catMaybes $ (g !?) <$> ixs
+neighbors g (r, c) = mapMaybe (g !?) ixs
   where
     ixs =
       delete

@@ -33,45 +33,45 @@ makeLenses 'AppState
 drawUI :: AppState -> [T.Widget ()]
 drawUI s =
   if s._ended
-    then [center $ ((hCenter $ str ":(") <=> (hCenter $ renderTable $ drawGrid (revealMines s._board) s._coord))]
+    then [center (hCenter (str ":(") <=> hCenter (renderTable $ drawGrid (revealMines s._board) s._coord))]
     else [center $ renderTable $ drawGrid s._board s._coord]
 
 drawGrid :: Grid -> Coord -> Table ()
-drawGrid g selected = table $ divvy cols cols $ highlight $ f <$> (assocs g)
+drawGrid g selected = table $ divvy cols cols $ highlight $ f <$> assocs g
   where
-    f (_, (Tile True _)) = (str " ### ")
-    f (_, (Tile False True)) = str "  X  "
-    f (coord, (Tile False False)) =
+    f (_, Tile True _) = str " ### "
+    f (_, Tile False True) = str "  X  "
+    f (coord, Tile False False) =
       str $
         "  "
           <> if mineCount g coord == 0
             then " "
             else
-              (show $ mineCount g coord)
+              show (mineCount g coord)
                 <> "  "
-    highlight = modifyIdx (cols * (pred $ fst selected) + (pred $ snd selected)) (withAttr highlighted)
+    highlight = modifyIdx (cols * pred (fst selected) + pred (snd selected)) (withAttr highlighted)
     (_, cols) = snd $ A.bounds g
 
 modifyIdx :: Int -> (a -> a) -> [a] -> [a]
-modifyIdx n f as = take (n) as <> [f (as !! n)] <> drop (n + 1) as
+modifyIdx n f as = take n as <> [f (as !! n)] <> drop (n + 1) as
 
 up, down, left, right :: EventM () AppState ()
 up = do
   (r, c) <- use coord
-  when (r > 1) (coord .= ((r - 1), c))
+  when (r > 1) (coord .= (r - 1, c))
 down = do
   (r, c) <- use coord
   g <- use board
   let (maxR, _) = snd $ A.bounds g
-  when (r < maxR) (coord .= ((r + 1), c))
+  when (r < maxR) (coord .= (r + 1, c))
 left = do
   (r, c) <- use coord
-  when (c > 1) (coord .= (r, (c - 1)))
+  when (c > 1) (coord .= (r, c - 1))
 right = do
   (r, c) <- use coord
   g <- use board
   let (_, maxC) = snd $ A.bounds g
-  when (c < maxC) (coord .= (r, (c + 1)))
+  when (c < maxC) (coord .= (r, c + 1))
 
 appEvent :: T.BrickEvent () e -> T.EventM () AppState ()
 appEvent (T.VtyEvent e) = case e of
@@ -95,7 +95,7 @@ select = do
   coord <- use coord
   board .= reveal g coord
   g' <- use board
-  if mineUncovered g' then ended .= True else pure ()
+  when (mineUncovered g') $ ended .= True
 
 highlighted :: A.AttrName
 highlighted = attrName "highlighted"
@@ -118,9 +118,9 @@ theApp =
 
 initBoard :: StdGen -> GridSize -> Grid
 initBoard gen = \case
-  Small -> mkGrid (10, 5) $ Tile True <$> (shuffle 6 44)
-  Medium -> mkGrid (10, 15) $ Tile True <$> (shuffle 18 132)
-  Large -> mkGrid (15, 20) $ Tile True <$> (shuffle 35 265)
+  Small -> mkGrid (10, 5) $ Tile True <$> shuffle 6 44
+  Medium -> mkGrid (10, 15) $ Tile True <$> shuffle 18 132
+  Large -> mkGrid (15, 20) $ Tile True <$> shuffle 35 265
   where
     shuffle mineCnt rest =
       fst $ uniformShuffleList (replicate mineCnt True <> replicate rest False) gen
@@ -129,7 +129,7 @@ initialState :: StdGen -> AppState
 initialState gen = AppState g False middle
   where
     g = initBoard gen Small
-    middle = bimap (`div` 2) (succ . (flip div $ 2)) $ snd $ A.bounds g
+    middle = bimap (`div` 2) (succ . (`div` 2)) $ snd $ A.bounds g
 
 main :: IO ()
 main = do

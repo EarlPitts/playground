@@ -31,7 +31,7 @@ data AppState = AppState
 
 makeLenses ''AppState
 
-getLetters :: String -> [Char]
+getLetters :: String -> String
 getLetters = nub . sort
 
 showGuessed :: String -> S.Set Char -> String
@@ -50,7 +50,7 @@ initialState w g =
 appEvent :: T.BrickEvent () e -> T.EventM () AppState ()
 appEvent (T.VtyEvent e) = case e of
   V.EvKey (V.KChar ' ') [] -> newGame
-  V.EvKey (V.KChar c) [] -> use ended >>= (flip when) (guess c) . not
+  V.EvKey (V.KChar c) [] -> use ended >>= flip when (guess c) . not
   V.EvKey V.KEsc [] -> M.halt
   _ -> return ()
 appEvent _ = return ()
@@ -58,11 +58,9 @@ appEvent _ = return ()
 newGame :: T.EventM () AppState ()
 newGame = do
   (AppState _ _ _ gen ended) <- get
-  if ended
-    then do
+  when ended $ do
       newWord <- liftIO getWord
       put $ initialState newWord gen
-    else pure ()
 
 guess :: Char -> T.EventM () AppState ()
 guess c = do
@@ -73,7 +71,7 @@ guess c = do
       let newGuessed = S.insert c g
       guessed .= newGuessed
       when
-        ((S.fromList $ getLetters w) == newGuessed)
+        (S.fromList (getLetters w) == newGuessed)
         (ended .= True)
     else do
       ws <- use wrong
@@ -81,7 +79,7 @@ guess c = do
       wrong .= newWrong
       when
         (length newWrong > 5)
-        ((guessed .= S.fromList w) >> (ended .= True))
+        (guessed .= S.fromList w >> ended .= True)
 
 theMap :: A.AttrMap
 theMap = A.attrMap V.defAttr []
@@ -89,16 +87,15 @@ theMap = A.attrMap V.defAttr []
 drawUI :: AppState -> [Widget ()]
 drawUI s =
   [ center $
-      drawHanging (s._wrong)
-        <+> ( padLeft
+      drawHanging s._wrong
+        <+> padLeft
                 (Pad 3)
                 ( padTop
                     (Pad 2)
-                    ( (str (showGuessed s._word s._guessed))
-                        <=> (str $ S.toList s._wrong)
+                    ( str (showGuessed s._word s._guessed)
+                        <=> str (S.toList s._wrong)
                     )
                 )
-            )
   ]
 
 drawHanging :: S.Set Char -> Widget ()
