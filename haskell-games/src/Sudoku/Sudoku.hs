@@ -4,11 +4,11 @@ import Data.List (sort, transpose)
 
 checkSolution :: [[Int]] -> Bool
 checkSolution grid = all (all checkNums) [rows, cols, diags, blocks]
-  where
-    rows = grid
-    cols = transpose grid
-    diags = [diagonal rows, diagonal cols]
-    blocks = undefined
+ where
+  rows = grid
+  cols = transpose grid
+  diags = [diagonal rows, diagonal cols]
+  blocks = undefined
 
 checkNums :: [Int] -> Bool
 checkNums nums = sort nums == [1 .. 9]

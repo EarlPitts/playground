@@ -9,6 +9,8 @@ common warnings
 library
   import:             warnings
   exposed-modules:
+    SpaceInvader.UI
+    SpaceInvader.Core
     Sudoku.Main
     Sudoku.Sudoku
     Snake.Main
