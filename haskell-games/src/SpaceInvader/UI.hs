@@ -29,18 +29,28 @@ import System.Random
 data AppState = AppState
   { _ship :: Coord
   , _projectiles :: [Coord]
+  , _cover :: [Coord]
   }
   deriving (Show)
 
 makeLenses 'AppState
 
 debug :: Bool
-debug = False
+debug = True
 
 data Tick = Tick
 
 drawUI :: AppState -> [T.Widget ()]
-drawUI s = [center $ drawGrid s]
+drawUI s =
+  if debug
+    then addDebugInfo s game
+    else game
+ where
+  game = [center $ drawGrid s]
+
+addDebugInfo :: AppState -> [T.Widget ()] -> [T.Widget ()]
+addDebugInfo (AppState s ps cover) ws =
+  vBox [str $ show s, str $ show ps, str $ show cover] : ws
 
 drawGrid :: AppState -> T.Widget ()
 drawGrid s =
@@ -53,11 +63,20 @@ drawGrid s =
   getCell x y
     | V2 x y == s ^. ship = withAttr shipAttr $ str "  "
     | V2 x y `elem` s ^. projectiles = withAttr projectileAttr $ str "''"
+    | V2 x y `elem` s ^. cover = withAttr coverAttr $ str "  "
     | otherwise = str "  "
 
 left, right :: EventM () AppState ()
-left = ship %= moveLeft
-right = ship %= moveRight
+left = do
+  s <- use ship
+  unless
+    (isOutside (moveLeft s))
+    (ship %= moveLeft)
+right = do
+  s <- use ship
+  unless
+    (isOutside (moveRight s))
+    (ship %= moveRight)
 
 appEvent :: T.BrickEvent () Tick -> T.EventM () AppState ()
 appEvent (T.VtyEvent e) = case e of
@@ -80,12 +99,16 @@ shipAttr = attrName "shipAttr"
 projectileAttr :: A.AttrName
 projectileAttr = attrName "projectileAttr"
 
+coverAttr :: A.AttrName
+coverAttr = attrName "coverAttr"
+
 theMap :: A.AttrMap
 theMap =
   A.attrMap
     V.defAttr
-    [ (shipAttr, V.black `on` V.red)
+    [ (shipAttr, V.red `on` V.red)
     , (projectileAttr, V.red `on` V.black)
+    , (coverAttr, V.green `on` V.green)
     ]
 
 theApp :: M.App AppState Tick ()
@@ -101,8 +124,9 @@ theApp =
 initState :: AppState
 initState =
   AppState
-    { _ship = V2 29 15
+    { _ship = V2 30 15
     , _projectiles = []
+    , _cover = initCover
     }
 
 main :: IO ()
