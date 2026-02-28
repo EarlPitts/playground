@@ -30,6 +30,7 @@ data AppState = AppState
   { _ship :: Coord
   , _projectiles :: [Coord]
   , _cover :: [Coord]
+  , _enemies :: [Enemy]
   }
   deriving (Show)
 
@@ -38,7 +39,7 @@ makeLenses 'AppState
 debug :: Bool
 debug = True
 
-data Tick = Tick
+data Tick = Tick | Tock
 
 drawUI :: AppState -> [T.Widget ()]
 drawUI s =
@@ -49,7 +50,7 @@ drawUI s =
   game = [center $ drawGrid s]
 
 addDebugInfo :: AppState -> [T.Widget ()] -> [T.Widget ()]
-addDebugInfo (AppState s ps cover) ws =
+addDebugInfo (AppState s ps cover es) ws =
   vBox [str $ show s, str $ show ps, str $ show cover] : ws
 
 drawGrid :: AppState -> T.Widget ()
@@ -64,6 +65,7 @@ drawGrid s =
     | V2 x y == s ^. ship = withAttr shipAttr $ str "  "
     | V2 x y `elem` s ^. projectiles = withAttr projectileAttr $ str "''"
     | V2 x y `elem` s ^. cover = withAttr coverAttr $ str "  "
+    | V2 x y `elem` join (s ^. enemies) = withAttr enemyAttr $ str "  "
     | otherwise = str "  "
 
 left, right :: EventM () AppState ()
@@ -91,6 +93,7 @@ appEvent (T.VtyEvent e) = case e of
     projectiles %= shoot s
   _ -> return ()
 appEvent (T.AppEvent Tick) = projectiles %= updateProjectiles
+appEvent (T.AppEvent Tock) = enemies %= updateEnemies
 appEvent _ = return ()
 
 shipAttr :: A.AttrName
@@ -102,6 +105,9 @@ projectileAttr = attrName "projectileAttr"
 coverAttr :: A.AttrName
 coverAttr = attrName "coverAttr"
 
+enemyAttr :: A.AttrName
+enemyAttr = attrName "enemyAttr"
+
 theMap :: A.AttrMap
 theMap =
   A.attrMap
@@ -109,6 +115,7 @@ theMap =
     [ (shipAttr, V.red `on` V.red)
     , (projectileAttr, V.red `on` V.black)
     , (coverAttr, V.green `on` V.green)
+    , (enemyAttr, V.white `on` V.white)
     ]
 
 theApp :: M.App AppState Tick ()
@@ -127,12 +134,14 @@ initState =
     { _ship = V2 30 15
     , _projectiles = []
     , _cover = initCover
+    , _enemies = initEnemies
     }
 
 main :: IO ()
 main = do
   chan <- newBChan 10
   _ <- forkIO $ forever (writeBChan chan Tick >> threadDelay 140000)
+  _ <- forkIO $ forever (writeBChan chan Tock >> threadDelay 1000000)
   let buildVty = mkVty defaultConfig
   initialVty <- buildVty
   void $ customMain initialVty buildVty (Just chan) theApp initState
