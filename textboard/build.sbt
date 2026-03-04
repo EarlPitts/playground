@@ -17,7 +17,9 @@ lazy val root = (project in file("."))
       "org.http4s" %% "http4s-dsl" % Http4sVersion,
       "org.scalameta" %% "munit" % MunitVersion % Test,
       "org.typelevel" %% "munit-cats-effect" % MunitCatsEffectVersion % Test,
-      "ch.qos.logback" % "logback-classic" % LogbackVersion % Runtime
+      "ch.qos.logback" % "logback-classic" % LogbackVersion % Runtime,
+      "org.tpolecat" %% "doobie-core"      % "1.0.0-RC8",
+      "org.xerial" % "sqlite-jdbc" % "3.45.0.0"
     ),
     assembly / assemblyMergeStrategy := {
       case "module-info.class" => MergeStrategy.discard

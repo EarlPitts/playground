@@ -22,6 +22,7 @@
           packages = with pkgs; [
             sbt
             coursier
+            sqlite
           ];
 
           # Set JAVA_HOME for tools that need it
