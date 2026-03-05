@@ -23,6 +23,10 @@
             sbt
             coursier
             sqlite
+            elmPackages.elm
+            elmPackages.elm-format
+            elmPackages.elm-language-server
+            nodejs
           ];
 
           # Set JAVA_HOME for tools that need it

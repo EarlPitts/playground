@@ -8,7 +8,7 @@ import org.http4s.ember.client.EmberClientBuilder
 import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.implicits.*
 import org.http4s.server.middleware.Logger
-
+import org.http4s.server.middleware._
 import cats.effect._
 import doobie._
 import doobie.implicits._
@@ -41,10 +41,10 @@ object TextboardServer:
       // Can also be done via a Router if you
       // want to extract segments not checked
       // in the underlying routes.
-      httpApp = (
+      httpApp = CORS.policy.withAllowOriginAll(
         TextboardRoutes.postingRoutes[F](posting) <+>
-        TextboardRoutes.helloWorldRoutes[F](helloWorldAlg) <+>
-        TextboardRoutes.jokeRoutes[F](jokeAlg)
+          TextboardRoutes.helloWorldRoutes[F](helloWorldAlg) <+>
+          TextboardRoutes.jokeRoutes[F](jokeAlg)
       ).orNotFound
 
       // With Middlewares in place

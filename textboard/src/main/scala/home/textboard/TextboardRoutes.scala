@@ -7,6 +7,7 @@ import org.http4s.HttpRoutes
 import org.http4s.dsl.Http4sDsl
 import org.http4s.circe.*
 import org.http4s.EntityDecoder
+import org.http4s.circe.*
 import Posts.PostText
 import Posts.PostText.*
 
@@ -37,11 +38,14 @@ object TextboardRoutes:
   ): HttpRoutes[F] =
     val dsl = new Http4sDsl[F] {}
     import dsl.*
-    HttpRoutes.of[F] { case req @ POST -> Root / "posts" / ize =>
-      // req.as[PostText].flatMap(t => Ok(t.text))
-      // p.createPost(PostText(ize)).as(Ok(ize)).flatten
-      req
-        .as[PostText]
-        .flatMap(t => p.createPost(t))
-        .flatMap(_ => Ok())
+    HttpRoutes.of[F] {
+      case GET -> Root / "posts" =>
+        p.getPosts.flatMap(ps => Ok(ps))
+
+      case req @ POST -> Root / "posts" =>
+        req
+          .as[PostText]
+          .flatMap(t => p.createPost(t))
+          .flatMap(_ => Ok())
+
     }
