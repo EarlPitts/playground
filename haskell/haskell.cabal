@@ -22,6 +22,7 @@ library
     , Bracket
     , CellularAutomata
     , Concurrency.ConcBasics
+    , Concurrency.Cache
     , Concurrency.BankAccount
     , ContravariantFunctor
     , DataStructures.Grid
