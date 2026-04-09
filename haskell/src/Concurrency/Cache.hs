@@ -1,3 +1,5 @@
+module Concurrency.Cache where
+
 import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Monad
