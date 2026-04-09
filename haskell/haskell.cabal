@@ -8,6 +8,8 @@ library
   exposed-modules:
       Scratch
     , Interview
+    , JSON
+    , DTO
     , Architecture.RegistrationFlowIO
     , Architecture.RegistrationFlowState
     , Algebra.BoolMonoids
@@ -50,6 +52,7 @@ library
     GeneralizedNewtypeDeriving
     LambdaCase
     OverloadedRecordDot
+    OverloadedStrings
   build-depends:
       ansi-terminal
     , aeson
@@ -60,15 +63,18 @@ library
     , containers
     , concurrency
     , exceptions
+    , either
     , free
     , hedis
     , hspec
+    , lifted-async
     , managed
     , network
     , monad-loops
     , mtl
     , optparse-applicative
     , parsec
+    , QuickCheck
     , random
     , rio
     , scotty
