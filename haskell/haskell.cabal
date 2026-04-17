@@ -1,58 +1,57 @@
 cabal-version: 3.4
-
-name:           haskell
-version:        0.0.0
-build-type:     Simple
+name:          haskell
+version:       0.0.0
+build-type:    Simple
 
 executable replace
-  main-is: Replace.hs
+  main-is:        Replace.hs
   hs-source-dirs: apps
   build-depends:
-      base
+    , base
     , text
 
 library
   exposed-modules:
-      Scratch
-    , JSON
-    , DTO
-    , Architecture.RegistrationFlowIO
-    , Architecture.RegistrationFlowState
-    , Algebra.BoolMonoids
-    , Algebra.MonadPlus
-    , Algebra.KleisliEndo
-    , Algorithms.Basics
-    , Algorithms.QuickSort
-    , Algorithms.DP.Fibo
-    , Algorithms.DP.Levenstein
-    , Algorithms.ConstraintSolving
-    , Arrow
-    , Bracket
-    , CellularAutomata
-    , Concurrency.ConcBasics
-    , Concurrency.Cache
-    , Concurrency.BankAccount
-    , ContravariantFunctor
-    , DataStructures.Grid
-    , DataStructures.Zipper
-    , FoldsCompared
-    , GameOfLife
-    , MonadTrans
-    , Networking.EchoServer
-    , Networking.ChatServer
-    , Onion
-    , OnionWeb
-    , TransVsMTL
-    , TypelevelStuff.OpaqueTypes
-    , TypelevelStuff.PhantomTypes
-    , TypelevelStuff.TypeclassVsRecord
-  ghc-options: -Wall
-  hs-source-dirs:
-    src
+    Scratch
+    Algebra.BoolMonoids
+    Algebra.KleisliEndo
+    Algebra.MonadPlus
+    Algorithms.Basics
+    Algorithms.ConstraintSolving
+    Algorithms.DP.Fibo
+    Algorithms.DP.Levenstein
+    Algorithms.QuickSort
+    Architecture.RegistrationFlowIO
+    Architecture.RegistrationFlowState
+    Arrow
+    Bracket
+    CellularAutomata
+    Concurrency.BankAccount
+    Concurrency.Cache
+    Concurrency.ConcBasics
+    ContravariantFunctor
+    DataStructures.Grid
+    DataStructures.Zipper
+    DTO
+    FoldsCompared
+    GameOfLife
+    JSON
+    MonadTrans
+    Networking.ChatServer
+    Networking.EchoServer
+    Onion
+    OnionWeb
+    TransVsMTL
+    TypelevelStuff.OpaqueTypes
+    TypelevelStuff.PhantomTypes
+    TypelevelStuff.TypeclassVsRecord
+
+  ghc-options:        -Wall
+  hs-source-dirs:     src
   default-extensions:
-    DeriveFunctor
     ConstraintKinds
     DeriveAnyClass
+    DeriveFunctor
     DeriveGeneric
     FlexibleContexts
     GeneralizedNewtypeDeriving
@@ -60,25 +59,28 @@ library
     OverloadedRecordDot
     OverloadedStrings
     RecordWildCards
+
   build-depends:
-      ansi-terminal
     , aeson
+    , ansi-terminal
+    , array
     , async
     , base
     , bytestring
     , comonad
-    , containers
     , concurrency
-    , exceptions
+    , containers
+    , criterion
     , either
+    , exceptions
     , free
     , hedis
     , hspec
     , lifted-async
     , managed
-    , network
     , monad-loops
     , mtl
+    , network
     , optparse-applicative
     , parsec
     , QuickCheck
@@ -91,7 +93,6 @@ library
     , text
     , time
     , transformers
-    , criterion
-    , array
     , vector
-  default-language: Haskell2010
+
+  default-language:   Haskell2010
