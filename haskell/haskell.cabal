@@ -4,6 +4,13 @@ name:           haskell
 version:        0.0.0
 build-type:     Simple
 
+executable replace
+  main-is: Replace.hs
+  hs-source-dirs: apps
+  build-depends:
+      base
+    , text
+
 library
   exposed-modules:
       Scratch
