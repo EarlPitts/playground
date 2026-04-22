@@ -23,6 +23,7 @@ runHCat = handleIOError $ do
   (h, w) <- getDimensions >>= eitherToErr
 
   let pages = toPages h w content
+  print $ length pages
 
   -- output
   showPages pages
@@ -51,7 +52,15 @@ display :: Page -> IO ()
 display (Page t) = T.putStr $ T.unlines t
 
 toPages :: Int -> Int -> T.Text -> [Page]
-toPages h w content = fmap Page $ groupsOf (h - 1) $ T.lines content
+toPages h w =
+  fmap Page . groupsOf (h - 1) . concatMap (wordWrap w) . T.lines
+
+wordWrap :: Int -> T.Text -> [T.Text]
+wordWrap n t
+  | T.length t <= n = [t]
+  | otherwise =
+      let (wrapped, unwrapped) = T.splitAt n t
+       in wrapped : wordWrap n unwrapped
 
 getInput :: IO Char
 getInput = do
