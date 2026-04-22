@@ -3,7 +3,6 @@
 
 module HCat where
 
-import Control.Concurrent
 import qualified Control.Exception as Exception
 import Control.Monad (when)
 import qualified Control.Monad.Except as Except
@@ -23,7 +22,6 @@ runHCat = handleIOError $ do
   (h, w) <- getDimensions >>= eitherToErr
 
   let pages = toPages h w content
-  print $ length pages
 
   -- output
   showPages pages
@@ -59,8 +57,14 @@ wordWrap :: Int -> T.Text -> [T.Text]
 wordWrap n t
   | T.length t <= n = [t]
   | otherwise =
-      let (wrapped, unwrapped) = T.splitAt n t
-       in wrapped : wordWrap n unwrapped
+      let (candidate, rest) = T.splitAt n t
+          (line, overflow) = softWrap candidate (T.length candidate - 1)
+       in line : wordWrap n (overflow <> rest)
+ where
+  softWrap text idx
+    | idx <= 0 = (text, T.empty)
+    | T.index text idx == ' ' = T.tail <$> T.splitAt idx text
+    | otherwise = softWrap text (idx - 1)
 
 getInput :: IO Char
 getInput = do
@@ -97,8 +101,3 @@ handleArgs = parseArgs <$> getArgs
     [path] -> Right path
     [] -> Left NoFileSpecified
     _ -> Left TooManyFiles
-
-displayError :: Error -> IO ()
-displayError = \case
-  TooManyFiles -> putStrLn "Error: Too many files given"
-  NoFileSpecified -> putStrLn "Error: No file specified"
