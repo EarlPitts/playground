@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeApplications #-}
 
 module HCat where
@@ -15,43 +16,76 @@ import System.IO.Error
 
 runHCat :: IO ()
 runHCat = handleIOError $ do
-  -- input
   arg <- handleArgs
   path <- eitherToErr arg
   content <- T.readFile path
-  (h, w) <- getDimensions >>= eitherToErr
+  dimensions <- getDimensions >>= eitherToErr
 
-  let pages = toPages h w content
+  let pages = paginate dimensions content
 
-  -- output
   showPages pages
  where
   handleIOError p =
     Exception.catch p $
       \e -> putStrLn $ "Error: " <> show @IOError e
 
-groupsOf :: Int -> [a] -> [[a]]
-groupsOf n = \case
-  [] -> []
-  as -> case splitAt n as of
-    (h, t) -> h : groupsOf n t
-
-newtype Page = Page {getPage :: [T.Text]}
-
-showPages :: [Page] -> IO ()
+showPages :: [T.Text] -> IO ()
 showPages = \case
   [] -> pure ()
   (p : ps) -> do
-    display p
+    T.putStr p
     c <- getInput
     when (c == ' ') $ showPages ps
 
-display :: Page -> IO ()
-display (Page t) = T.putStr $ T.unlines t
+data ScreenDimensions = ScreenDimensions
+  { rows :: Int
+  , cols :: Int
+  }
+  deriving (Show)
 
-toPages :: Int -> Int -> T.Text -> [Page]
-toPages h w =
-  fmap Page . groupsOf (h - 1) . concatMap (wordWrap w) . T.lines
+data Error
+  = NoFileSpecified
+  | TooManyFiles
+  | CannotGetDimensions
+  deriving (Show)
+
+-- IO
+getInput :: IO Char
+getInput = do
+  hSetBuffering stdin NoBuffering
+  hSetEcho stdin False
+  c <- getChar
+  hSetEcho stdin True
+  if c `elem` [' ', 'q']
+    then pure c
+    else getInput
+
+getDimensions :: IO (Either Error ScreenDimensions)
+getDimensions =
+  size >>= \case
+    Just (Window r c) -> pure $ Right (ScreenDimensions r c)
+    Nothing -> pure $ Left CannotGetDimensions
+
+eitherToErr :: (Show a) => Either a b -> IO b
+eitherToErr = \case
+  Left err -> Exception.throwIO $ userError (show err)
+  Right b -> pure b
+
+handleArgs :: IO (Either Error FilePath)
+handleArgs = parseArgs <$> getArgs
+ where
+  parseArgs = \case
+    [path] -> Right path
+    [] -> Left NoFileSpecified
+    _ -> Left TooManyFiles
+
+-- Core
+paginate :: ScreenDimensions -> T.Text -> [T.Text]
+paginate ScreenDimensions{..} t = T.unlines <$> pageLines
+ where
+  unwrappedLines = T.lines t
+  wrappedLines = concatMap (wordWrap cols) unwrappedLines
+  pageLines = groupsOf (rows - 1) wrappedLines
 
 wordWrap :: Int -> T.Text -> [T.Text]
 wordWrap n t
@@ -66,38 +100,8 @@ wordWrap n t
     | T.index text idx == ' ' = T.tail <$> T.splitAt idx text
     | otherwise = softWrap text (idx - 1)
 
-getInput :: IO Char
-getInput = do
-  hSetBuffering stdin NoBuffering
-  hSetEcho stdin False
-  c <- getChar
-  hSetEcho stdin True
-  if c `elem` [' ', 'q']
-    then pure c
-    else getInput
-
-getDimensions :: IO (Either Error (Int, Int))
-getDimensions = do
-  ds <- size
-  case ds of
-    Just (Window h w) -> pure $ Right (h, w)
-    Nothing -> pure $ Left CannotGetDimensions
-
-data Error
-  = NoFileSpecified
-  | TooManyFiles
-  | CannotGetDimensions
-  deriving (Show)
-
-eitherToErr :: (Show a) => Either a b -> IO b
-eitherToErr = \case
-  Left err -> Exception.throwIO $ userError (show err)
-  Right b -> pure b
-
-handleArgs :: IO (Either Error FilePath)
-handleArgs = parseArgs <$> getArgs
- where
-  parseArgs = \case
-    [path] -> Right path
-    [] -> Left NoFileSpecified
-    _ -> Left TooManyFiles
+groupsOf :: Int -> [a] -> [[a]]
+groupsOf n = \case
+  [] -> []
+  as -> case splitAt n as of
+    (h, t) -> h : groupsOf n t
