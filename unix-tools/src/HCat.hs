@@ -9,17 +9,19 @@ import Control.Monad (when)
 import qualified Control.Monad.Except as Except
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-import System.Console.Terminal.Size
+import System.Console.Terminal.Size (Window (Window))
 import System.Environment
 import System.IO (BufferMode (NoBuffering), hSetBuffering, hSetEcho, stdin)
 import System.IO.Error
 
-runHCat :: IO ()
-runHCat = handleIOError $ do
+runHCat ::
+  IO (Maybe (Window Int)) ->
+  IO ()
+runHCat size = handleIOError $ do
   arg <- handleArgs
   path <- eitherToErr arg
   content <- T.readFile path
-  dimensions <- getDimensions >>= eitherToErr
+  dimensions <- getDimensions size >>= eitherToErr
 
   let pages = paginate dimensions content
 
@@ -34,8 +36,8 @@ showPages = \case
   [] -> pure ()
   (p : ps) -> do
     T.putStr p
-    c <- getInput
-    when (c == ' ') $ showPages ps
+    input <- getContinue
+    when (input == Continue) (showPages ps)
 
 data ScreenDimensions = ScreenDimensions
   { rows :: Int
@@ -49,19 +51,27 @@ data Error
   | CannotGetDimensions
   deriving (Show)
 
+data ContinueCancel
+  = Continue
+  | Cancel
+  deriving (Eq, Show)
+
 -- IO
-getInput :: IO Char
-getInput = do
+getContinue :: IO ContinueCancel
+getContinue = do
   hSetBuffering stdin NoBuffering
   hSetEcho stdin False
   c <- getChar
   hSetEcho stdin True
-  if c `elem` [' ', 'q']
-    then pure c
-    else getInput
+  case c of
+    ' ' -> pure Continue
+    'q' -> pure Cancel
+    _ -> getContinue
 
-getDimensions :: IO (Either Error ScreenDimensions)
-getDimensions =
+getDimensions ::
+  IO (Maybe (Window Int)) ->
+  IO (Either Error ScreenDimensions)
+getDimensions size =
   size >>= \case
     Just (Window r c) -> pure $ Right (ScreenDimensions r c)
     Nothing -> pure $ Left CannotGetDimensions

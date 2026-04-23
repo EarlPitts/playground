@@ -30,6 +30,7 @@ executable hcat
   build-depends:
     , base
     , unix-tools
+    , terminal-size
 
   hs-source-dirs:   hcat
   default-language: Haskell2010
