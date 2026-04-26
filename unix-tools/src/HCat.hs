@@ -14,20 +14,23 @@ import qualified Data.Text.IO as T
 import qualified Data.Time.Clock as C
 import qualified Data.Time.Clock.POSIX as PC
 import qualified Data.Time.Format as TF
-import System.Console.Terminal.Size (Window (Window))
+import qualified System.Console.Terminal.Size as Term
 import qualified System.Directory as D
 import System.Environment
 import System.IO (BufferMode (NoBuffering), hSetBuffering, hSetEcho, stdin, stdout)
 import System.IO.Error
 import Text.Printf (printf)
 
-runHCat ::
-  IO (Maybe (Window Int)) ->
+runHCat :: IO ()
+runHCat = runHCatWith Term.size
+
+runHCatWith ::
+  IO (Maybe (Term.Window Int)) ->
   IO ()
-runHCat size = handleIOError $ do
+runHCatWith size = handleIOError $ do
   path <- eitherToErr =<< handleArgs
   content <- T.readFile path
-  dimensions <- eitherToErr =<< getDimensions size
+  dimensions <- getDimensions size
   info <- fileInfo path
   hSetBuffering stdout NoBuffering
 
@@ -58,6 +61,9 @@ data ScreenDimensions = ScreenDimensions
   , cols :: Int
   }
   deriving (Show)
+
+defaultScreenDimensions :: ScreenDimensions
+defaultScreenDimensions = ScreenDimensions 20 40
 
 data Error
   = NoFileSpecified
@@ -92,12 +98,12 @@ getContinue = do
     _ -> getContinue
 
 getDimensions ::
-  IO (Maybe (Window Int)) ->
-  IO (Either Error ScreenDimensions)
+  IO (Maybe (Term.Window Int)) ->
+  IO ScreenDimensions
 getDimensions size =
   size >>= \case
-    Just (Window r c) -> pure $ Right (ScreenDimensions r c)
-    Nothing -> pure $ Left CannotGetDimensions
+    Just (Term.Window r c) -> pure $ ScreenDimensions r c
+    Nothing -> pure defaultScreenDimensions
 
 eitherToErr :: (Show a) => Either a b -> IO b
 eitherToErr = \case
