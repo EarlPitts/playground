@@ -5,10 +5,12 @@
 
 module HCat where
 
+import Control.Applicative (ZipList (..))
 import qualified Control.Exception as Exception
 import Control.Monad (when)
 import qualified Control.Monad.Except as Except
 import qualified Data.ByteString as BS
+import Data.Foldable
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.Time.Clock as C
@@ -28,28 +30,28 @@ runHCatWith ::
   IO (Maybe (Term.Window Int)) ->
   IO ()
 runHCatWith size = handleIOError $ do
-  path <- eitherToErr =<< handleArgs
-  content <- T.readFile path
+  paths <- eitherToErr =<< handleArgs
+  contents <- traverse T.readFile paths
+  infos <- traverse fileInfo paths
   dimensions <- getDimensions size
-  info <- fileInfo path
   hSetBuffering stdout NoBuffering
 
-  let pages = paginate dimensions info content
+  let pages = zipWith (paginate dimensions) infos contents
 
-  showPages info pages
+  traverse_ showPages pages
  where
   handleIOError p =
     Exception.catch p $
       \e -> putStrLn $ "Error: " <> show @IOError e
 
-showPages :: FileInfo -> [T.Text] -> IO ()
-showPages info = \case
+showPages :: [T.Text] -> IO ()
+showPages = \case
   [] -> pure ()
   (p : ps) -> do
     clearScreen
     T.putStr p
     getContinue >>= \case
-      Continue -> showPages info ps
+      Continue -> showPages ps
       Cancel -> pure ()
 
 clearScreen :: IO ()
@@ -67,7 +69,6 @@ defaultScreenDimensions = ScreenDimensions 20 40
 
 data Error
   = NoFileSpecified
-  | TooManyFiles
   | CannotGetDimensions
   deriving (Show)
 
@@ -110,13 +111,12 @@ eitherToErr = \case
   Left err -> Exception.throwIO $ userError (show err)
   Right b -> pure b
 
-handleArgs :: IO (Either Error FilePath)
+handleArgs :: IO (Either Error [FilePath])
 handleArgs = parseArgs <$> getArgs
  where
   parseArgs = \case
-    [path] -> Right path
     [] -> Left NoFileSpecified
-    _ -> Left TooManyFiles
+    paths -> Right paths
 
 fileInfo :: FilePath -> IO FileInfo
 fileInfo path = do
