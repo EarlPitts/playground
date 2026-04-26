@@ -11,6 +11,7 @@ import Control.Monad (when)
 import qualified Control.Monad.Except as Except
 import qualified Data.ByteString as BS
 import Data.Foldable
+import Data.List.Zipper
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.Time.Clock as C
@@ -36,23 +37,25 @@ runHCatWith size = handleIOError $ do
   dimensions <- getDimensions size
   hSetBuffering stdout NoBuffering
 
-  let pages = zipWith (paginate dimensions) infos contents
+  let pages = concat $ zipWith (paginate dimensions) infos contents
+  let pages' = fromList pages
 
-  traverse_ showPages pages
+  showPages pages'
  where
   handleIOError p =
     Exception.catch p $
       \e -> putStrLn $ "Error: " <> show @IOError e
 
-showPages :: [T.Text] -> IO ()
-showPages = \case
-  [] -> pure ()
-  (p : ps) -> do
-    clearScreen
-    T.putStr p
-    getContinue >>= \case
-      Continue -> showPages ps
-      Cancel -> pure ()
+showPages :: Zipper T.Text -> IO ()
+showPages pages
+  | endp pages = pure ()
+  | otherwise = do
+      clearScreen
+      T.putStr (cursor pages)
+      getUserInput >>= \case
+        Forward -> showPages (right pages)
+        Backward -> showPages (left pages)
+        Cancel -> pure ()
 
 clearScreen :: IO ()
 clearScreen =
@@ -72,8 +75,9 @@ data Error
   | CannotGetDimensions
   deriving (Show)
 
-data ContinueCancel
-  = Continue
+data UserInput
+  = Forward
+  | Backward
   | Cancel
   deriving (Eq, Show)
 
@@ -88,15 +92,18 @@ data FileInfo = FileInfo
   deriving (Show)
 
 -- IO
-getContinue :: IO ContinueCancel
-getContinue = do
+getUserInput :: IO UserInput
+getUserInput = do
   hSetBuffering stdin NoBuffering
   hSetEcho stdin False
   c <- getChar
   case c of
-    ' ' -> pure Continue
+    ' ' -> pure Forward
+    '\DEL' -> pure Backward
+    'j' -> pure Forward
+    'k' -> pure Backward
     'q' -> pure Cancel
-    _ -> getContinue
+    _ -> getUserInput
 
 getDimensions ::
   IO (Maybe (Term.Window Int)) ->
