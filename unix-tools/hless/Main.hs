@@ -1,6 +1,6 @@
 module Main where
 
-import HCat
+import HLess
 
 main :: IO ()
-main = runHCat
+main = runHLess

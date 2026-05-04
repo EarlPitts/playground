@@ -3,7 +3,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeApplications #-}
 
-module HCat where
+module HLess where
 
 import Control.Applicative (ZipList (..))
 import qualified Control.Exception as Exception
@@ -24,13 +24,13 @@ import System.IO (BufferMode (NoBuffering), hSetBuffering, hSetEcho, stdin, stdo
 import System.IO.Error
 import Text.Printf (printf)
 
-runHCat :: IO ()
-runHCat = runHCatWith Term.size
+runHLess :: IO ()
+runHLess = runHLessWith Term.size
 
-runHCatWith ::
+runHLessWith ::
   IO (Maybe (Term.Window Int)) ->
   IO ()
-runHCatWith size = handleIOError $ do
+runHLessWith size = handleIOError $ do
   paths <- eitherToErr =<< handleArgs
   contents <- traverse T.readFile paths
   infos <- traverse fileInfo paths
@@ -42,9 +42,8 @@ runHCatWith size = handleIOError $ do
 
   showPages pages'
  where
-  handleIOError p =
-    Exception.catch p $
-      \e -> putStrLn $ "Error: " <> show @IOError e
+  handleIOError = Exception.handle $
+    \e -> putStrLn $ "Error: " <> show @IOError e
 
 showPages :: Zipper T.Text -> IO ()
 showPages pages
