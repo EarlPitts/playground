@@ -5,6 +5,7 @@ module Utils where
 
 import Control.Exception (IOException, handle)
 import Control.Monad
+import qualified Data.ByteString as BS
 import Data.Foldable
 import Data.IORef
 import Data.List
@@ -35,7 +36,6 @@ dropSuffix suffix as
 traverseDirectory :: FilePath -> (FilePath -> IO ()) -> IO ()
 traverseDirectory rootPath action = do
   seenRef <- newIORef S.empty
-  -- resultRef <- newIORef []
 
   let haveSeenDriectory canonicalPath =
         S.member canonicalPath <$> readIORef seenRef
@@ -59,4 +59,25 @@ traverseDirectory rootPath action = do
                   traverseSubDirectory file
 
   traverseSubDirectory (dropSuffix "/" rootPath)
-  -- readIORef resultRef
+
+traverseDirectory' :: FilePath -> (FilePath -> a) -> IO [a]
+traverseDirectory' path action = do
+  resultRef <- newIORef []
+  traverseDirectory path $ \file ->
+    modifyIORef resultRef (action file :)
+  readIORef resultRef
+
+largestContents :: FilePath -> IO BS.ByteString
+largestContents rootPath = do
+  contentsRef <- newIORef BS.empty
+
+  traverseDirectory rootPath $ \file -> do
+    contents <- BS.readFile file
+    modifyIORef contentsRef (takeLongest contents)
+
+  readIORef contentsRef
+ where
+  takeLongest a b = do
+    if BS.length a > BS.length b
+      then a
+      else b
