@@ -42,6 +42,7 @@ library
     Networking.EchoServer
     Onion
     OnionWeb
+    Streaming
     TransVsMTL
     TypelevelStuff.OpaqueTypes
     TypelevelStuff.PhantomTypes
@@ -70,6 +71,7 @@ library
     , bytestring
     , comonad
     , concurrency
+    , conduit
     , containers
     , criterion
     , either
