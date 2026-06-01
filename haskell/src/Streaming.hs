@@ -1,8 +1,9 @@
 module Streaming where
 
 import Conduit
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as BS8
+import qualified Data.ByteString.Char8 as BC
 import Database.Redis as R
 
 scanSource :: Connection -> ConduitT () BS.ByteString IO ()
@@ -19,11 +20,12 @@ scanSource conn = go cursor0
           then pure ()
           else go nextCur
 
+kvPairs :: [(ByteString, ByteString)]
 kvPairs = liftA2 (,) ks ["a"]
  where
-  ks = BS8.pack . show <$> [1 .. 1000]
+  ks = BC.pack . show <$> ([1 .. 1000] :: [Int])
 
-setTTLs :: Connection -> ConduitT BS8.ByteString Void IO ()
+setTTLs :: Connection -> ConduitT ByteString Void IO ()
 setTTLs conn =
   mapM_C
     ( \key -> liftIO $ do
