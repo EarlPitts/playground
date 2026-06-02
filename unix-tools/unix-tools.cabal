@@ -9,29 +9,34 @@ common warnings
 library
   import:           warnings
   exposed-modules:
+    FilePack
     HLess
+    Metrics
     Utils
 
   -- other-modules:
   -- other-extensions:
-  ghc-options:      -O1 -Wall
+  ghc-options:      -O2 -Wall
   hs-source-dirs:   src
   default-language: Haskell2010
   build-depends:
     , base
+    , base64-bytestring
     , bytestring
+    , containers
     , directory
     , ListZipper
     , mtl
     , terminal-size
     , text
     , time
-    , containers
+    , unix
+    , word8
 
 executable hless
   import:           warnings
   main-is:          Main.hs
-  ghc-options:      -O1 -threaded -rtsopts -with-rtsopts=-N
+  ghc-options:      -O2 -threaded -rtsopts -with-rtsopts=-N
   hs-source-dirs:   hless
   default-language: Haskell2010
 
