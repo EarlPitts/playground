@@ -24,31 +24,36 @@ data Action
   | UpdateProgram MisoString
   deriving (Show, Eq)
 
-initState =
-  VM
-    { tape = fromList (replicate 10 0),
-      program = fromList $ parse "[-]>,[>,]<[.<]",
-      -- program = empty,
-      input = [72,101,108,108,111,32,87,111,114,108,100,33,0],
-      -- input = [],
-      output = []
-    }
+data Model = Model {
+    _vm :: VM
+  , _started :: Bool
+} deriving (Show, Eq)
 
-app :: App VM Action
-app =
-  (component initState updateModel viewModel)
-    { styles = [Sheet sheet]
-    }
+vmL :: Lens Model VM
+vmL = lens _vm $ \m v -> m {_vm = v}
 
-updateModel :: Action -> Effect parent props VM Action
+startedL :: Lens Model Bool
+startedL = lens _started $ \m v -> m {_started = v}
+
+initState :: Model
+initState = Model {
+    _vm = mkVM "[-]>,[>,]<[.<]" "Hello World!"
+  , _started = False
+}
+
+app :: App Model Action
+app = (component initState updateModel viewModel)
+    { styles = [Sheet sheet] }
+
+updateModel :: Action -> Effect parent props Model Action
 updateModel = \case
-  Run -> this %= exec
-  Step -> this %= execStep
+  Run -> vmL %= exec
+  Step -> vmL %= execStep
   Reset -> this .= initState
-  UpdateInput i -> this %= (\vm -> vm {input = toWords (fromMisoString i)})
-  UpdateProgram p -> this %= (\vm -> vm {program = fromList $ parse (fromMisoString p)})
+  UpdateInput i -> vmL %= (\vm -> vm {input = toWords (fromMisoString i)})
+  -- UpdateProgram p -> vmL %= (\vm -> vm {program = fromList $ parse (fromMisoString p)})
 
-viewTape :: Zipper Cell -> View VM Action
+viewTape :: Zipper Cell -> View Model Action
 viewTape (Zip begin (curr : end)) =
   H.div_
     [] $
@@ -59,10 +64,10 @@ viewTape (Zip begin (curr : end)) =
         <> fmap (viewCell []) end
     ]
 
-viewCell :: [Attribute Action] -> Cell -> View VM Action
+viewCell :: [Attribute Action] -> Cell -> View Model Action
 viewCell attrs c = H.div_ attrs [text (ms (show c))]
 
-viewProgram :: Zipper Instr -> View VM Action
+viewProgram :: Zipper Instr -> View Model Action
 viewProgram (Zip [] []) =
   H.div_
     []
@@ -90,10 +95,10 @@ viewProgram (Zip begin end) =
         <> fmap (viewInstr []) end
     ]
 
-viewInstr :: [Attribute Action] -> Instr -> View VM Action
+viewInstr :: [Attribute Action] -> Instr -> View Model Action
 viewInstr attrs c = H.div_ attrs [text (ms (show c))]
 
-viewInput :: [Word8] -> View VM Action
+viewInput :: [Word8] -> View Model Action
 viewInput ws =
   H.div_ []
     [ H.h2_ [] ["Input"],
@@ -103,15 +108,15 @@ viewInput ws =
             ]
     ]
 
-viewOutput :: [Word8] -> View VM Action
+viewOutput :: [Word8] -> View Model Action
 viewOutput ws =
   H.div_ []
     [ H.h2_ [] ["Output"],
       text $ ms (fromWords (reverse ws))
     ]
 
-viewModel :: props -> VM -> View VM Action
-viewModel _ VM {..} =
+viewModel :: props -> Model -> View Model Action
+viewModel _ (Model VM {..} started) =
   H.div_ []
     [ H.h1_ [] ["BF Emulator"]
     , H.button_
