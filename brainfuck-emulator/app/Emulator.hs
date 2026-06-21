@@ -47,9 +47,9 @@ app = (component initState updateModel viewModel)
 
 updateModel :: Action -> Effect parent props Model Action
 updateModel = \case
-  Run -> vmL %= exec
-  Step -> vmL %= execStep
-  Reset -> this .= initState
+  Run -> vmL %= exec >> startedL .= True
+  Step -> vmL %= execStep >> startedL .= True
+  Reset -> this .= initState >> startedL .= False
   UpdateInput i -> vmL %= (\vm -> vm {input = toWords (fromMisoString i)})
   -- UpdateProgram p -> vmL %= (\vm -> vm {program = fromList $ parse (fromMisoString p)})
 
@@ -98,14 +98,14 @@ viewProgram (Zip begin end) =
 viewInstr :: [Attribute Action] -> Instr -> View Model Action
 viewInstr attrs c = H.div_ attrs [text (ms (show c))]
 
-viewInput :: [Word8] -> View Model Action
-viewInput ws =
+viewInput :: [Word8] -> Bool -> View Model Action
+viewInput ws started =
   H.div_ []
     [ H.h2_ [] ["Input"],
-      input_ [ type_ "text"
+      input_ ([ type_ "text"
             , value_ (ms $ fromWords ws)
             , onInput UpdateInput
-            ]
+            ] <> if started then [ disabled_ ] else [])
     ]
 
 viewOutput :: [Word8] -> View Model Action
@@ -130,6 +130,6 @@ viewModel _ (Model VM {..} started) =
         ] [text "Reset"]
     , viewTape tape
     , viewProgram program
-    , viewInput input
+    , viewInput input started
     , viewOutput output
     ]
