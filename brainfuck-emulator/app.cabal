@@ -37,12 +37,10 @@ executable app
   other-modules:
     Emulator
     Style
-    BrainFuck
-    Data.List.Zipper.Extended
   build-depends: 
     base < 5,
     miso >= 1.9,
-    -- brainfuck-interpreter,
+    brainfuck-interpreter,
     ListZipper,
     bytestring,
     mtl,
