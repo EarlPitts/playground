@@ -1,6 +1,7 @@
 module Mandelbrot where
 
 import Data.Char
+import Data.List.Split
 import Data.Foldable (traverse_)
 import System.Console.Terminal.Size (Window (..))
 import qualified System.Console.Terminal.Size as Term
@@ -8,16 +9,19 @@ import qualified System.Console.Terminal.Size as Term
 main :: IO ()
 main = do
   Just (Window h w) <- Term.size
-  let canvas = replicate (h * 4) (replicate (w * 2) White)
-  traverse_ putStrLn $ render canvas
+  -- let canvas = replicate (h * 4) (replicate (w * 2) White)
+  traverse_ putStrLn $ render (circle 2200) 80 40 
 
-data Dot = Black | White deriving (Show, Eq)
+type Cell = [[Bool]] -- 2x8
+type Canvas = [[Bool]] -- arbitrary size
 
-type Cell = [[Dot]] -- 2x8
-type Canvas = [[Dot]] -- arbitrary size
+circle :: Int -> (Int, Int) -> Bool
+circle radius (x,y) = (x - 70) ^2 + ( y - 80)^2 <= radius
 
-render :: Canvas -> [String]
-render = (fmap . fmap) renderCell . discretize
+render :: ((Int,Int) -> Bool) -> Int -> Int -> [String]
+render f width height = let
+  canvas = [(x,y) | x <- [0.. width * 2 - 1], y <- [0.. height * 4 - 1] ]
+  in (fmap . fmap) renderCell $ discretize $ chunksOf (width * 2) (fmap f canvas)
 
 discretize :: Canvas -> [[Cell]]
 discretize [] = []
@@ -27,15 +31,11 @@ discretize (r1 : r2 : r3 : r4 : rs) = f r1 r2 r3 r4 : discretize rs
   f (_1 : _4 : cs) (_2 : _5 : cs') (_3 : _6 : cs'') (_7 : _8 : cs''') = [[[_1, _4], [_2, _5], [_3, _6], [_7, _8]]] <> f cs cs' cs'' cs'''
 
 renderCell :: Cell -> Char
-renderCell cell = chr $ 0x2800 + fromIntegral (toDecimal cell)
+renderCell = chr . (+ 0x2800) . fromIntegral . toOffset
 
-toDecimal :: Cell -> Int
-toDecimal [[_1, _4], [_2, _5], [_3, _6], [_7, _8]] =
-  foldl (\acc curr -> acc * 2 + curr) 0 $ fmap (\case Black -> 0; White -> 1) (reverse [_1, _2, _3, _4, _5, _6, _7, _8])
-
-canvas =
-  [ [Black, White, White, Black, Black, White]
-  , [Black, White, White, Black, Black, White]
-  , [Black, White, White, Black, Black, White]
-  , [Black, White, White, Black, Black, White]
-  ]
+toOffset :: Cell -> Int
+toOffset [[_1, _4], [_2, _5], [_3, _6], [_7, _8]] =
+  toDecimal $ fmap color [_8, _7, _6, _5, _4, _3, _2, _1]
+ where
+  toDecimal = foldl (\acc curr -> acc * 2 + curr) 0
+  color = \case False -> 0; True -> 1
