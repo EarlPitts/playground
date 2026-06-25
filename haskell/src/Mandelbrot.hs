@@ -1,27 +1,28 @@
 module Mandelbrot where
 
 import Data.Char
-import Data.List.Split
 import Data.Foldable (traverse_)
+import Data.List.Split
 import System.Console.Terminal.Size (Window (..))
 import qualified System.Console.Terminal.Size as Term
 
 main :: IO ()
 main = do
   Just (Window h w) <- Term.size
-  -- let canvas = replicate (h * 4) (replicate (w * 2) White)
-  traverse_ putStrLn $ render (circle 2200) 80 40 
+  traverse_ putStrLn $ render (circle 2200) w (h - 2)
 
 type Cell = [[Bool]] -- 2x8
 type Canvas = [[Bool]] -- arbitrary size
 
 circle :: Int -> (Int, Int) -> Bool
-circle radius (x,y) = (x - 70) ^2 + ( y - 80)^2 <= radius
+circle radius (x, y) = (x - 70) ^ 2 + (y - 80) ^ 2 <= radius
 
-render :: ((Int,Int) -> Bool) -> Int -> Int -> [String]
-render f width height = let
-  canvas = [(x,y) | x <- [0.. width * 2 - 1], y <- [0.. height * 4 - 1] ]
-  in (fmap . fmap) renderCell $ discretize $ chunksOf (width * 2) (fmap f canvas)
+render :: ((Int, Int) -> Bool) -> Int -> Int -> [String]
+render f width height =
+  let
+    canvas = [(x, y) | y <- [0 .. height * 4 - 1], x <- [0 .. width * 2 - 1]]
+   in
+    (fmap . fmap) renderCell $ discretize $ chunksOf (width * 2) (fmap f canvas)
 
 discretize :: Canvas -> [[Cell]]
 discretize [] = []
