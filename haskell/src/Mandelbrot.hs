@@ -1,6 +1,7 @@
 module Mandelbrot where
 
 import Data.Char
+import Data.Complex
 import Data.Foldable (traverse_)
 import Data.List.Split
 import System.Console.Terminal.Size (Window (..))
@@ -9,13 +10,28 @@ import qualified System.Console.Terminal.Size as Term
 main :: IO ()
 main = do
   Just (Window h w) <- Term.size
-  traverse_ putStrLn $ render (circle 2200) w (h - 2)
+  traverse_ putStrLn $ render (mandelbrot (w * 2) (h * 4 - 2)) w (h - 2)
 
 type Cell = [[Bool]] -- 2x8
 type Canvas = [[Bool]] -- arbitrary size
 
 circle :: Int -> (Int, Int) -> Bool
 circle radius (x, y) = (x - 70) ^ 2 + (y - 80) ^ 2 <= radius
+
+mandelbrot :: Int -> Int -> (Int, Int) -> Bool
+mandelbrot w h (x, y) =
+  let
+    centerX = -0.75
+    centerY = 0.1
+    zoom = 6
+    f c z = z * z + c
+    nx = centerX + (fromIntegral x / fromIntegral w - 0.5) * 3.5 / zoom -- - 2.5
+    -- ny = fromIntegral y / fromIntegral h * 2.0 - 1.0
+    ny = centerY + (fromIntegral y / fromIntegral h - 0.5) * 2.0 / zoom
+    iters = 80
+    values = iterate (f (nx :+ ny)) 0
+   in
+    2 > magnitude (values !! iters)
 
 render :: ((Int, Int) -> Bool) -> Int -> Int -> [String]
 render f width height =
