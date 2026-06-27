@@ -6,11 +6,9 @@ module Mandelbrot where
 import Brick
 import qualified Brick.AttrMap as A
 import qualified Brick.Main as M
-import Brick.Types
 import Control.Monad (void)
 import Data.Char
 import Data.Complex
-import Data.Foldable (traverse_)
 import Data.List
 import Data.List.Split
 import qualified Graphics.Vty as V
@@ -36,68 +34,64 @@ theApp w h =
     , M.appChooseCursor = M.showFirstCursor
     , M.appHandleEvent = appEvent
     , M.appStartEvent = return ()
-    , M.appAttrMap = const theMap
+    , M.appAttrMap = const (A.attrMap V.defAttr [])
     }
-
-theMap :: AttrMap
-theMap = A.attrMap V.defAttr []
 
 initState :: AppState
 initState =
   AppState
     { sZoom = 1
-    , sCenterX = -0.75
-    , sCenterY = 0.1
+    , sCenterX = 0
+    , sCenterY = 0
     }
 
 drawUI :: Int -> Int -> AppState -> [Widget ()]
-drawUI w h (AppState zoom centerX centerY) = [str $ Mandelbrot.render (mandelbrot zoom centerX centerY (w * 2) (h * 4 - 2)) w (h - 2)]
+drawUI w h (AppState zoom centerX centerY) =
+  [str $ Mandelbrot.render (mandelbrot zoom centerX centerY (w * 2) (h * 4)) w h]
 
 appEvent :: BrickEvent () e -> EventM () AppState ()
-appEvent (VtyEvent e) = case e of
-  V.EvKey (V.KChar 'i') [] -> modify (\s -> s{sZoom = s.sZoom * 1.5})
-  V.EvKey (V.KChar ' ') [] -> modify (\s -> s{sZoom = s.sZoom * 1.5})
-  V.EvKey (V.KChar 'o') [] -> modify (\s -> s{sZoom = s.sZoom * 0.5})
-  V.EvKey V.KBS [] -> modify (\s -> s{sZoom = s.sZoom * 0.5})
-  V.EvKey (V.KChar 'j') [] -> modify (\s -> s{sCenterY = s.sCenterY + (0.5 / s.sZoom)})
-  V.EvKey V.KDown [] -> modify (\s -> s{sCenterY = s.sCenterY + (0.5 / s.sZoom)})
-  V.EvKey (V.KChar 'k') [] -> modify (\s -> s{sCenterY = s.sCenterY - (0.5 / s.sZoom)})
-  V.EvKey V.KUp [] -> modify (\s -> s{sCenterY = s.sCenterY - (0.5 / s.sZoom)})
-  V.EvKey (V.KChar 'h') [] -> modify (\s -> s{sCenterX = s.sCenterX - (0.5 / s.sZoom)})
-  V.EvKey V.KLeft [] -> modify (\s -> s{sCenterX = s.sCenterX - (0.5 / s.sZoom)})
-  V.EvKey (V.KChar 'l') [] -> modify (\s -> s{sCenterX = s.sCenterX + (0.5 / s.sZoom)})
-  V.EvKey V.KRight [] -> modify (\s -> s{sCenterX = s.sCenterX + (0.5 / s.sZoom)})
-  V.EvKey (V.KChar 'q') [] -> M.halt
+appEvent (VtyEvent (V.EvKey key _)) = case key of
+  V.KChar 'i' -> zoomIn
+  V.KChar ' ' -> zoomIn
+  V.KChar 'o' -> zoomOut
+  V.KBS -> zoomOut
+  V.KChar 'j' -> down
+  V.KDown -> down
+  V.KChar 'k' -> up
+  V.KUp -> up
+  V.KChar 'h' -> left
+  V.KLeft -> left
+  V.KChar 'l' -> right
+  V.KRight -> right
+  V.KChar 'q' -> M.halt
   _ -> return ()
 appEvent _ = return ()
+
+left, right, up, down, zoomIn, zoomOut :: EventM () AppState ()
+left = modify (\s -> s{sCenterX = s.sCenterX - (0.5 / s.sZoom)})
+down = modify (\s -> s{sCenterY = s.sCenterY + (0.5 / s.sZoom)})
+up = modify (\s -> s{sCenterY = s.sCenterY - (0.5 / s.sZoom)})
+right = modify (\s -> s{sCenterX = s.sCenterX + (0.5 / s.sZoom)})
+zoomIn = modify (\s -> s{sZoom = s.sZoom * 1.5})
+zoomOut = modify (\s -> s{sZoom = s.sZoom * 0.5})
 
 type Cell = [[Bool]] -- 2x8
 type Canvas = [[Bool]] -- arbitrary size
 
-circle :: Int -> (Int, Int) -> Bool
-circle radius (x, y) = (x - 70) ^ 2 + (y - 80) ^ 2 <= radius
-
 mandelbrot :: Double -> Double -> Double -> Int -> Int -> (Int, Int) -> Bool
-mandelbrot zoom centerX centerY w h (x, y) =
-  let
-    -- centerX = -0.75
-    -- centerY = 0.1
-    -- zoom = 1
-    f c z = z * z + c
-    nx = centerX + (fromIntegral x / fromIntegral w - 0.5) * 3.5 / zoom -- - 2.5
-    -- ny = fromIntegral y / fromIntegral h * 2.0 - 1.0
-    ny = centerY + (fromIntegral y / fromIntegral h - 0.5) * 2.0 / zoom
-    iters = 80
-    values = iterate (f (nx :+ ny)) 0
-   in
-    2 > magnitude (values !! iters)
+mandelbrot zoom centerX centerY w h (x, y) = 2 > magnitude (values !! iters)
+ where
+  f c z = z * z + c
+  nx = centerX + (fromIntegral x / fromIntegral w - 0.5) * 3.5 / zoom
+  ny = centerY + (fromIntegral y / fromIntegral h - 0.5) * 2.0 / zoom
+  iters = 80
+  values = iterate (f (nx :+ ny)) 0
 
 render :: ((Int, Int) -> Bool) -> Int -> Int -> String
 render f width height =
-  let
-    canvas = [(x, y) | y <- [0 .. height * 4 - 1], x <- [0 .. width * 2 - 1]]
-   in
-    intercalate "\n" $ (fmap . fmap) renderCell $ discretize $ chunksOf (width * 2) (fmap f canvas)
+  intercalate "\n" $ (fmap . fmap) renderCell $ discretize $ chunksOf (width * 2) (fmap f canvas)
+ where
+  canvas = [(x, y) | y <- [0 .. height * 4 - 1], x <- [0 .. width * 2 - 1]]
 
 discretize :: Canvas -> [[Cell]]
 discretize [] = []
