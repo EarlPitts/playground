@@ -4,6 +4,7 @@ import Conduit
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
+import Data.List.NonEmpty
 import Database.Redis as R
 
 scanSource :: Connection -> ConduitT () BS.ByteString IO ()
@@ -20,8 +21,8 @@ scanSource conn = go cursor0
           then pure ()
           else go nextCur
 
-kvPairs :: [(ByteString, ByteString)]
-kvPairs = liftA2 (,) ks ["a"]
+kvPairs :: NonEmpty (ByteString, ByteString)
+kvPairs = liftA2 (,) (fromList ks) (fromList ["a"])
  where
   ks = BC.pack . show <$> ([1 .. 1000] :: [Int])
 
