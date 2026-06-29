@@ -26,10 +26,9 @@
             haskell-language-server
             hlint
             cabal-fmt
-            pkgs.zlib
           ];
 
-          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
+          buildInputs = [
             pkgs.zlib
           ];
         };

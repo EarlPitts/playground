@@ -20,20 +20,15 @@
       in
       {
         devShells.default = pkgs.mkShell {
-          buildInputs = with haskellPackages; [
+          packages = with haskellPackages; [
             ghc
             cabal-install
             haskell-language-server
             hlint
-            pkgs.mesa
-            pkgs.freeglut
-            pkgs.mesa_glu
-            pkgs.zlib
             cabal-fmt
-            # Add any system dependencies here
           ];
 
-          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
+          buildInputs = [
             pkgs.freeglut
             pkgs.mesa
             pkgs.mesa_glu

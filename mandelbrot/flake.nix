@@ -26,6 +26,9 @@
             haskell-language-server
             hlint
             cabal-fmt
+          ];
+
+          buildInputs = [
             pkgs.zlib
           ];
         };
