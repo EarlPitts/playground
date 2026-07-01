@@ -9,6 +9,7 @@ import Control.Exception.Base (bracket)
 import Control.Monad (replicateM, void)
 import qualified Data.Aeson as Aeson
 import Data.Int (Int64)
+import Data.List (find)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NL
 import Data.Maybe (fromMaybe)
@@ -105,6 +106,14 @@ data CreateThread = CreateThread
   }
   deriving (Show)
 
+data ThreadPostRow = ThreadPostRow
+  { tprThreadId :: Int64
+  , tprSubject :: T.Text
+  , tprPostId :: Int64
+  , tprPostThreadId :: Int64
+  , tprPostText :: T.Text
+  }
+
 data Post = Post
   { pId :: Int64
   , pThreadId :: Int64
@@ -126,6 +135,15 @@ instance SQLite.FromRow Post where
       <*> SQLite.field
       <*> SQLite.field
 
+instance SQLite.FromRow ThreadPostRow where
+  fromRow =
+    ThreadPostRow
+      <$> SQLite.field
+      <*> SQLite.field
+      <*> SQLite.field
+      <*> SQLite.field
+      <*> SQLite.field
+
 createThread :: Handle -> CreateThread -> IO Int64
 createThread h CreateThread{..} = do
   SQLite.execute
@@ -133,6 +151,26 @@ createThread h CreateThread{..} = do
     "INSERT INTO threads (subject) values (?)"
     (Only ctSubject)
   SQLite.lastInsertRowId (hConn h)
+
+getThreads :: Handle -> IO [Thread]
+getThreads h = do
+  rows <-
+    SQLite.query_
+      (hConn h)
+      "SELECT t.id, t.subject, p.id, p.thread_id, p.text \
+      \FROM threads t \
+      \JOIN posts p ON p.thread_id = t.id \
+      \ORDER BY t.id, p.id"
+  pure $ groupPosts rows
+
+groupPosts :: [ThreadPostRow] -> [Thread]
+groupPosts [] = []
+groupPosts (r : rs) = t : groupPosts rest
+ where
+  (same, rest) = span (\row -> tprThreadId r == tprThreadId row) rs
+  op = Post{pId = tprPostId r, pThreadId = tprThreadId r, pText = tprPostText r}
+  ps = fmap (\row -> Post{pId = tprPostId row, pThreadId = tprThreadId row, pText = tprPostText row}) same
+  t = Thread{tId = tprThreadId r, tSubject = tprSubject r, tPosts = op NL.:| ps}
 
 createPost :: Handle -> CreatePost -> IO Int64
 createPost h CreatePost{..} = do
