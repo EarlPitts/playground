@@ -9,6 +9,8 @@ import Control.Exception.Base (bracket)
 import Control.Monad (replicateM, void)
 import qualified Data.Aeson as Aeson
 import Data.Int (Int64)
+import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as NL
 import Data.Maybe (fromMaybe)
 import Data.Monoid (Last (..))
 import qualified Data.Pool as Pool
@@ -51,7 +53,6 @@ data Handle = Handle
   , hConn :: Connection
   }
 
--- TODO bracket this
 withHandle :: Config -> (Handle -> IO a) -> IO a
 withHandle config = bracket (new config) close
 
@@ -76,34 +77,45 @@ createTables h = do
     (hConn h)
     "CREATE TABLE IF NOT EXISTS posts ( \
     \    id INTEGER PRIMARY KEY, \
+    \    thread_id INTEGER NOT NULL REFERENCES threads(id) ON DELETE CASCADE, \
     \    text TEXT NOT NULL \
     \)"
-  putStrLn "created"
+  SQLite.execute_
+    (hConn h)
+    "CREATE TABLE IF NOT EXISTS threads ( \
+    \    id INTEGER PRIMARY KEY NOT NULL, \
+    \    subject TEXT NOT NULL \
+    \)"
 
 -- SQLite.execute_
 --   (hConn h)
 --   "CREATE UNIQUE INDEX IF NOT EXISTS users_address ON users(address)"
 -- SQLite.execute_
 --   (hConn h)
---   "CREATE TABLE IF NOT EXISTS mails ( \
---   \    id TEXT PRIMARY KEY NOT NULL, \
---   \    \"from\" TEXT NOT NULL, \
---   \    \"to\" TEXT NOT NULL, \
---   \    subject TEXT NOT NULL, \
---   \    source TEXT NOT NULL \
---   \)"
--- SQLite.execute_
---   (hConn h)
 --   "CREATE UNIQUE INDEX IF NOT EXISTS mails_to ON mails(id, \"to\")"
 
 data CreatePost = CreatePost
-  { cText :: T.Text
+  { cpText :: T.Text
+  , cpThreadId :: Int64
+  }
+  deriving (Show)
+
+data CreateThread = CreateThread
+  { ctSubject :: T.Text
   }
   deriving (Show)
 
 data Post = Post
   { pId :: Int64
+  , pThreadId :: Int64
   , pText :: T.Text
+  }
+  deriving (Show)
+
+data Thread = Thread
+  { tId :: Int64
+  , tSubject :: T.Text
+  , tPosts :: NonEmpty Post
   }
   deriving (Show)
 
@@ -112,14 +124,23 @@ instance SQLite.FromRow Post where
     Post
       <$> SQLite.field
       <*> SQLite.field
+      <*> SQLite.field
 
-createPost :: Handle -> CreatePost -> IO Int
+createThread :: Handle -> CreateThread -> IO Int64
+createThread h CreateThread{..} = do
+  SQLite.execute
+    (hConn h)
+    "INSERT INTO threads (subject) values (?)"
+    (Only ctSubject)
+  SQLite.lastInsertRowId (hConn h)
+
+createPost :: Handle -> CreatePost -> IO Int64
 createPost h CreatePost{..} = do
   SQLite.execute
     (hConn h)
-    "INSERT INTO posts (text) values (?)"
-    (Only cText)
-  fromIntegral <$> SQLite.lastInsertRowId (hConn h)
+    "INSERT INTO posts (thread_id, text) values (?,?)"
+    (cpThreadId, cpText)
+  SQLite.lastInsertRowId (hConn h)
 
 getPosts :: Handle -> IO [Post]
 getPosts h =

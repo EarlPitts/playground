@@ -69,17 +69,23 @@ app h = do
   Scotty.get "/" $ do
     posts <- liftIO $ Database.getPosts (hDatabase h)
     Scotty.html $ renderText (mainPage posts)
-  Scotty.post "/new" $ do
+  Scotty.post "/newThread" $ do
     pText <- Scotty.formParam "text"
-    void $ liftIO $ Database.createPost (hDatabase h) (Database.CreatePost pText)
+    tSubject <- Scotty.formParam "subject"
+    tId <- liftIO $ Database.createThread (hDatabase h) (Database.CreateThread tSubject)
+    void $ liftIO $ Database.createPost (hDatabase h) (Database.CreatePost pText tId)
     Scotty.redirect "/"
+  -- Scotty.post "/newPost" $ do
+  --   pText <- Scotty.formParam "text"
+  --   void $ liftIO $ Database.createPost (hDatabase h) (Database.CreatePost pText)
+  --   Scotty.redirect "/"
 
 mainPage :: [Post] -> Html ()
 mainPage posts = do
   p_ "Hello!"
-  form_ [method_ "post", enctype_ "multipart/form-data", action_ "/new"] $ do
+  form_ [method_ "post", enctype_ "multipart/form-data", action_ "/newThread"] $ do
     -- input_ [name_ "name", placeholder_ "Anonymous", type_ "text"]
-    -- input_ [name_ "subject", placeholder_ "Subject", type_ "text"]
+    input_ [name_ "subject", placeholder_ "Subject", type_ "text"]
     textarea_ [name_ "text"] ""
     -- input_ [name_ "image", type_ "file"]
     button_ "Post"
@@ -87,5 +93,6 @@ mainPage posts = do
 
 postView :: Post -> Html ()
 postView Post{..} = do
-  p_ (toHtml (show pId))
-  p_ (toHtml pText)
+  p_ "Thread Id: " <> toHtml (show pThreadId)
+  p_ "Post Id: " <> toHtml (show pId)
+  p_ "Text: " <> toHtml pText
