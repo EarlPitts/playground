@@ -5,7 +5,7 @@ module Imageboard.Web where
 
 import Control.Applicative (empty, (<|>))
 import Control.Exception.Lifted (Handler (..), catches)
-import Control.Monad (void)
+import Control.Monad (forM_, void)
 import Control.Monad.Reader (ReaderT, asks, runReaderT)
 import Control.Monad.Trans (liftIO)
 import qualified Data.Aeson as A
@@ -84,24 +84,26 @@ app h = do
 
 mainPage :: [Thread] -> Html ()
 mainPage threads = do
-  p_ "Hello!"
+  p_ "Create new thread:"
   form_ [method_ "post", enctype_ "multipart/form-data", action_ "/newThread"] $ do
     -- input_ [name_ "name", placeholder_ "Anonymous", type_ "text"]
-    input_ [name_ "subject", placeholder_ "Subject", type_ "text"]
-    textarea_ [name_ "text"] ""
+    div_ $ input_ [name_ "subject", placeholder_ "Subject", type_ "text"]
+    div_ $ textarea_ [name_ "text"] ""
     -- input_ [name_ "image", type_ "file"]
-    button_ "Post"
+    div_ $ button_ "Post"
+  hr_ []
   traverse_ threadView threads
 
 threadView :: Thread -> Html ()
-threadView Thread{..} = do
-  p_ "Thread Id: " <> toHtml (show tId)
-  p_ "Subject: " <> toHtml tSubject
+threadView Thread{..} = div_ $ do
+  span_ "Thread Id: " <> toHtml (show tId)
+  span_ " Subject: " <> toHtml tSubject
   postView op
+  hr_ []
  where
   op = NL.head tPosts
 
 postView :: Post -> Html ()
-postView Post{..} = do
-  p_ "Post Id: " <> toHtml (show pId)
+postView Post{..} = div_ $ do
+  span_ "Post Id: " <> toHtml (show pId)
   p_ "Text: " <> toHtml pText
