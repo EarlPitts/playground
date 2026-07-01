@@ -1,0 +1,9 @@
+database:
+  db_path: "db.sqlite"
+
+logger:
+  verbosity: debug
+
+web:
+  port: 8000
+  domain: "localhost"
