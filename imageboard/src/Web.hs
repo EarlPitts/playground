@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Imageboard.Web where
+module Web where
 
 import Control.Applicative (empty, (<|>))
 import Control.Exception.Lifted (Handler (..), catches)
@@ -16,9 +16,9 @@ import Data.Monoid ((<>))
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Time as Time
-import Imageboard.Database (Post (..), Thread (..))
-import qualified Imageboard.Database as Database
-import qualified Imageboard.Logger as Logger
+import Database (Post (..), Thread (..))
+import qualified Database as Database
+import qualified Logger as Logger
 import Lucid
 import Web.Scotty (ScottyM)
 import qualified Web.Scotty as Scotty
@@ -40,7 +40,7 @@ instance Monoid Config where
   mempty = Config empty empty
 
 instance A.FromJSON Config where
-  parseJSON = A.withObject "FromJSON Imageboard.Web.Config" $ \o ->
+  parseJSON = A.withObject "FromJSON Web.Config" $ \o ->
     Config
       <$> o A..:? "port"
       <*> o A..:? "domain"

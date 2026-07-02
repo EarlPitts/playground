@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-import qualified Imageboard.Main as Imageboard
+import qualified Imageboard
 
 main :: IO ()
 main = Imageboard.main

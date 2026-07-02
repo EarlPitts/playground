@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
-module Imageboard.Logger
+module Logger
     ( Verbosity (..)
     , Config (..)
     , Handle
@@ -33,7 +33,7 @@ data Verbosity
     deriving (Eq, Ord, Show)
 
 instance A.FromJSON Verbosity where
-    parseJSON = A.withText "FromJSON Imageboard.Logger.Verbosity" $ \t ->
+    parseJSON = A.withText "FromJSON Logger.Verbosity" $ \t ->
         case t of
             "debug"   -> pure Debug
             "info"    -> pure Info
@@ -53,7 +53,7 @@ instance Monoid Config where
     mempty                              = Config empty empty
 
 instance A.FromJSON Config where
-    parseJSON = A.withObject "FromJSON Imageboard.Logger.Config" $ \o -> Config
+    parseJSON = A.withObject "FromJSON Logger.Config" $ \o -> Config
         <$> o A..:? "path"
         <*> o A..:? "verbosity"
 

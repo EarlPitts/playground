@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Imageboard.Database where
+module Database where
 
 import Control.Exception (Exception, catch, throwIO)
 import Control.Exception.Base (bracket)

@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Imageboard.Main (
+module Imageboard (
   Config (..),
   main,
 ) where
@@ -13,9 +13,9 @@ import qualified Data.Aeson as A
 import Data.Monoid ((<>))
 import Data.Version (showVersion)
 import qualified Data.Yaml as Yaml
-import qualified Imageboard.Database as Database
-import qualified Imageboard.Logger as Logger
-import qualified Imageboard.Web as Web
+import qualified Database as Database
+import qualified Logger as Logger
+import qualified Web as Web
 
 import qualified Paths_imageboard
 import System.Environment (getArgs, getProgName)
@@ -45,7 +45,7 @@ instance Monoid Config where
       }
 
 instance A.FromJSON Config where
-  parseJSON = A.withObject "FromJSON Imageboard.Main.Server.Config" $ \o ->
+  parseJSON = A.withObject "FromJSON Main.Server.Config" $ \o ->
     Config
       <$> o A..:? "logger" A..!= mempty
       <*> o A..:? "web" A..!= mempty
