@@ -16,11 +16,9 @@ import Data.Maybe (fromMaybe)
 import Data.Monoid (Last (..))
 import qualified Data.Pool as Pool
 import qualified Data.Text as T
-import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Encoding as T
+import qualified Data.Text.Lazy as TL
 import qualified Data.Time as Time
-import qualified Data.UUID as UUID
-import qualified Data.UUID.V4 as UUID
 import Database.SQLite.Simple (Connection, Only (..))
 import qualified Database.SQLite.Simple as SQLite
 import System.Random (randomRIO)
@@ -80,7 +78,8 @@ createTables h = do
     "CREATE TABLE IF NOT EXISTS posts ( \
     \    id INTEGER PRIMARY KEY, \
     \    thread_id INTEGER NOT NULL REFERENCES threads(id) ON DELETE CASCADE, \
-    \    text TEXT NOT NULL \
+    \    text TEXT NOT NULL, \
+    \    created_at TEXT NOT NULL DEFAULT (datetime('now')) \
     \)"
   SQLite.execute_
     (hConn h)
@@ -113,12 +112,14 @@ data ThreadPostRow = ThreadPostRow
   , tprPostId :: Int64
   , tprPostThreadId :: Int64
   , tprPostText :: T.Text
+  , tprPostCreated :: Time.UTCTime
   }
 
 data Post = Post
   { pId :: Int64
   , pThreadId :: Int64
   , pText :: T.Text
+  , pCreated :: Time.UTCTime
   }
   deriving (Show)
 
@@ -135,11 +136,13 @@ instance SQLite.FromRow Post where
       <$> SQLite.field
       <*> SQLite.field
       <*> SQLite.field
+      <*> SQLite.field
 
 instance SQLite.FromRow ThreadPostRow where
   fromRow =
     ThreadPostRow
       <$> SQLite.field
+      <*> SQLite.field
       <*> SQLite.field
       <*> SQLite.field
       <*> SQLite.field
@@ -158,7 +161,7 @@ getThreads h = do
   rows <-
     SQLite.query_
       (hConn h)
-      "SELECT t.id, t.subject, p.id, p.thread_id, p.text \
+      "SELECT t.id, t.subject, p.id, p.thread_id, p.text, p.created_at \
       \FROM threads t \
       \JOIN posts p ON p.thread_id = t.id \
       \ORDER BY t.id, p.id"
@@ -169,7 +172,7 @@ getThreadById h tId = do
   rows <-
     SQLite.query
       (hConn h)
-      "SELECT t.id, t.subject, p.id, p.thread_id, p.text \
+      "SELECT t.id, t.subject, p.id, p.thread_id, p.text, p.created_at \
       \FROM threads t \
       \JOIN posts p ON p.thread_id = t.id \
       \WHERE t.id == ? \
@@ -193,6 +196,7 @@ threadFromRows rows@(op NL.:| _) =
       { pId = tprPostId r
       , pThreadId = tprThreadId r
       , pText = tprPostText r
+      , pCreated = tprPostCreated r
       }
 
 groupPosts :: [ThreadPostRow] -> [Thread]
@@ -200,8 +204,14 @@ groupPosts [] = []
 groupPosts (r : rs) = t : groupPosts rest
  where
   (same, rest) = span (\row -> tprThreadId r == tprThreadId row) rs
-  op = Post{pId = tprPostId r, pThreadId = tprThreadId r, pText = tprPostText r}
-  ps = fmap (\row -> Post{pId = tprPostId row, pThreadId = tprThreadId row, pText = tprPostText row}) same
+  op =
+    Post
+      { pId = tprPostId r
+      , pThreadId = tprThreadId r
+      , pText = tprPostText r
+      , pCreated = tprPostCreated r
+      }
+  ps = fmap (\row -> Post{pId = tprPostId row, pThreadId = tprThreadId row, pText = tprPostText row, pCreated = tprPostCreated r}) same
   t = Thread{tId = tprThreadId r, tSubject = tprSubject r, tPosts = op NL.:| ps}
 
 createPost :: Handle -> CreatePost -> IO Int64

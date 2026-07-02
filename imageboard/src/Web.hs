@@ -71,7 +71,7 @@ app :: Handle -> ScottyM ()
 app h = do
   Scotty.get "/" $ do
     threads <- liftIO $ Database.getThreads (hDatabase h)
-    Scotty.html $ renderText (mainPage threads)
+    Scotty.html $ renderText (index threads)
   Scotty.get "/thread/:tId" $ do
     tId <- Scotty.pathParam "tId"
     maybeThread <- liftIO $ Database.getThreadById (hDatabase h) tId
@@ -89,9 +89,23 @@ app h = do
     pText <- Scotty.formParam "text"
     void $ liftIO $ Database.createPost (hDatabase h) (Database.CreatePost pText tId)
     Scotty.redirect $ TL.pack ("/thread/" <> show tId)
+  Scotty.get "/assets/style.css" $ do
+    Scotty.setHeader "Content-Type" "text/css"
+    Scotty.file "assets/style.css"
 
-mainPage :: [Thread] -> Html ()
-mainPage threads = do
+template :: T.Text -> Html () -> Html ()
+template title body = doctypehtml_ $ do
+  head_ $ do
+    title_ $ toHtml title
+    link_ [rel_ "stylesheet", type_ "text/css", href_ "/assets/style.css"] -- TODO
+  body_ $ do
+    header_ $ a_ [href_ "/"] "imageboard"
+    body
+
+-- footer_ "Very nice footer text"
+
+index :: [Thread] -> Html ()
+index threads = template "index" $ do
   p_ "Create new thread:"
   form_ [method_ "post", enctype_ "multipart/form-data", action_ "/newThread"] $ do
     -- input_ [name_ "name", placeholder_ "Anonymous", type_ "text"]
@@ -106,22 +120,27 @@ threadPreview :: Thread -> Html ()
 threadPreview Thread{..} = div_ $ do
   span_ "Thread Id: " <> toHtml (show tId)
   span_ " Subject: " <> toHtml tSubject
-  postView op
+  div_ $ toHtml (show $ pCreated op)
+  div_ $ a_ [href_ $ T.pack $ "thread/" <> show tId] "Reply"
+  p_ $ toHtml (pText op)
   hr_ []
  where
   op = NL.head tPosts
 
 threadView :: Thread -> Html ()
-threadView Thread{..} = div_ $ do
+threadView Thread{..} = template tSubject $ do
   p_ "Create new post:"
   form_ [method_ "post", enctype_ "multipart/form-data", action_ $ T.pack $ "/newPost/" <> show tId] $ do
     div_ $ textarea_ [name_ "text"] ""
     div_ $ button_ "Post"
   span_ "Thread Id: " <> toHtml (show tId)
   span_ " Subject: " <> toHtml tSubject
+  hr_ []
   traverse_ postView tPosts
 
 postView :: Post -> Html ()
 postView Post{..} = div_ $ do
   span_ "Post Id: " <> toHtml (show pId)
-  p_ "Text: " <> toHtml pText
+  div_ $ toHtml (show pCreated)
+  p_ $ toHtml pText
+  hr_ []
