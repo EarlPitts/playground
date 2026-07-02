@@ -15,11 +15,13 @@ import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import qualified Data.Text.Lazy as TL
 import qualified Data.Time as Time
 import Database (Post (..), Thread (..))
 import qualified Database as Database
 import qualified Logger as Logger
 import Lucid
+import Network.HTTP.Types.Status (status404)
 import Web.Scotty (ScottyM)
 import qualified Web.Scotty as Scotty
 
@@ -70,17 +72,23 @@ app h = do
   Scotty.get "/" $ do
     threads <- liftIO $ Database.getThreads (hDatabase h)
     Scotty.html $ renderText (mainPage threads)
+  Scotty.get "/thread/:tId" $ do
+    tId <- Scotty.pathParam "tId"
+    maybeThread <- liftIO $ Database.getThreadById (hDatabase h) tId
+    case maybeThread of
+      Nothing -> Scotty.status status404
+      Just t -> Scotty.html $ renderText (threadView t)
   Scotty.post "/newThread" $ do
     pText <- Scotty.formParam "text"
     tSubject <- Scotty.formParam "subject"
     tId <- liftIO $ Database.createThread (hDatabase h) (Database.CreateThread tSubject)
     void $ liftIO $ Database.createPost (hDatabase h) (Database.CreatePost pText tId)
     Scotty.redirect "/"
-
--- Scotty.post "/newPost" $ do
---   pText <- Scotty.formParam "text"
---   void $ liftIO $ Database.createPost (hDatabase h) (Database.CreatePost pText)
---   Scotty.redirect "/"
+  Scotty.post "/newPost/:tId" $ do
+    tId <- Scotty.pathParam "tId"
+    pText <- Scotty.formParam "text"
+    void $ liftIO $ Database.createPost (hDatabase h) (Database.CreatePost pText tId)
+    Scotty.redirect $ TL.pack ("/thread/" <> show tId)
 
 mainPage :: [Thread] -> Html ()
 mainPage threads = do
@@ -92,16 +100,26 @@ mainPage threads = do
     -- input_ [name_ "image", type_ "file"]
     div_ $ button_ "Post"
   hr_ []
-  traverse_ threadView threads
+  traverse_ threadPreview threads
 
-threadView :: Thread -> Html ()
-threadView Thread{..} = div_ $ do
+threadPreview :: Thread -> Html ()
+threadPreview Thread{..} = div_ $ do
   span_ "Thread Id: " <> toHtml (show tId)
   span_ " Subject: " <> toHtml tSubject
   postView op
   hr_ []
  where
   op = NL.head tPosts
+
+threadView :: Thread -> Html ()
+threadView Thread{..} = div_ $ do
+  p_ "Create new post:"
+  form_ [method_ "post", enctype_ "multipart/form-data", action_ $ T.pack $ "/newPost/" <> show tId] $ do
+    div_ $ textarea_ [name_ "text"] ""
+    div_ $ button_ "Post"
+  span_ "Thread Id: " <> toHtml (show tId)
+  span_ " Subject: " <> toHtml tSubject
+  traverse_ postView tPosts
 
 postView :: Post -> Html ()
 postView Post{..} = div_ $ do

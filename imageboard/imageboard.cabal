@@ -29,6 +29,7 @@ library
     , lifted-base
     , lucid2
     , mbox
+    , http-types
     , mtl
     , multipart
     , random

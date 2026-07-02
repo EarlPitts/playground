@@ -16,6 +16,7 @@ import Data.Maybe (fromMaybe)
 import Data.Monoid (Last (..))
 import qualified Data.Pool as Pool
 import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Encoding as T
 import qualified Data.Time as Time
 import qualified Data.UUID as UUID
@@ -162,6 +163,37 @@ getThreads h = do
       \JOIN posts p ON p.thread_id = t.id \
       \ORDER BY t.id, p.id"
   pure $ groupPosts rows
+
+getThreadById :: Handle -> Int64 -> IO (Maybe Thread)
+getThreadById h tId = do
+  rows <-
+    SQLite.query
+      (hConn h)
+      "SELECT t.id, t.subject, p.id, p.thread_id, p.text \
+      \FROM threads t \
+      \JOIN posts p ON p.thread_id = t.id \
+      \WHERE t.id == ? \
+      \ORDER BY t.id, p.id"
+      (Only (fromIntegral tId :: Int64))
+  case NL.nonEmpty rows of
+    Nothing -> pure Nothing
+    Just nlRows -> pure $ Just $ threadFromRows nlRows
+
+threadFromRows :: NonEmpty ThreadPostRow -> Thread
+threadFromRows rows@(op NL.:| _) =
+  Thread
+    { tId = tprThreadId op
+    , tSubject = tprSubject op
+    , tPosts = posts
+    }
+ where
+  posts = mkPost <$> rows
+  mkPost r =
+    Post
+      { pId = tprPostId r
+      , pThreadId = tprThreadId r
+      , pText = tprPostText r
+      }
 
 groupPosts :: [ThreadPostRow] -> [Thread]
 groupPosts [] = []
