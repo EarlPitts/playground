@@ -24,6 +24,7 @@ import Lucid
 import Network.HTTP.Types.Status (status404)
 import Web.Scotty (ScottyM)
 import qualified Web.Scotty as Scotty
+import Control.Monad.IO.Class (MonadIO)
 
 data Config = Config
   { cPort :: Maybe Int
@@ -97,12 +98,11 @@ template :: T.Text -> Html () -> Html ()
 template title body = doctypehtml_ $ do
   head_ $ do
     title_ $ toHtml title
-    link_ [rel_ "stylesheet", type_ "text/css", href_ "/assets/style.css"] -- TODO
+    link_ [rel_ "stylesheet", type_ "text/css", href_ "/assets/style.css"]
   body_ $ do
     header_ $ a_ [href_ "/"] "imageboard"
     body
-
--- footer_ "Very nice footer text"
+    -- footer_ "Very nice footer text"
 
 index :: [Thread] -> Html ()
 index threads = template "index" $ do
@@ -118,10 +118,12 @@ index threads = template "index" $ do
 
 threadPreview :: Thread -> Html ()
 threadPreview Thread{..} = div_ $ do
-  span_ "Thread Id: " <> toHtml (show tId)
-  span_ " Subject: " <> toHtml tSubject
-  div_ $ toHtml (show $ pCreated op)
-  div_ $ a_ [href_ $ T.pack $ "thread/" <> show tId] "Reply"
+  div_ $ do
+    span_ $ toHtml tSubject
+    " "
+    span_ $ toHtml (show $ pCreated op)
+    " "
+    span_ $ a_ [href_ $ T.pack $ "thread/" <> show tId] "Reply"
   p_ $ toHtml (pText op)
   hr_ []
  where
@@ -133,14 +135,14 @@ threadView Thread{..} = template tSubject $ do
   form_ [method_ "post", enctype_ "multipart/form-data", action_ $ T.pack $ "/newPost/" <> show tId] $ do
     div_ $ textarea_ [name_ "text"] ""
     div_ $ button_ "Post"
-  span_ "Thread Id: " <> toHtml (show tId)
-  span_ " Subject: " <> toHtml tSubject
   hr_ []
+  toHtml tSubject
   traverse_ postView tPosts
 
 postView :: Post -> Html ()
 postView Post{..} = div_ $ do
-  span_ "Post Id: " <> toHtml (show pId)
-  div_ $ toHtml (show pCreated)
+  span_ $ toHtml (show pCreated)
+  " "
+  span_ $ toHtml (show pId)
   p_ $ toHtml pText
   hr_ []

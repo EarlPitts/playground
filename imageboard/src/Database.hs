@@ -2,12 +2,29 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Database where
+module Database (
+  Post (..),
+  Thread (..),
+  CreatePost (..),
+  CreateThread (..),
+  Handle,
+  Config,
+  getPostById,
+  getPosts,
+  getThreadById,
+  getThreads,
+  createPost,
+  createThread,
+  withHandle,
+)
+where
 
 import Control.Exception (Exception, catch, throwIO)
 import Control.Exception.Base (bracket)
 import Control.Monad (replicateM, void)
 import qualified Data.Aeson as Aeson
+import Data.ByteString (ByteString (..))
+import qualified Data.ByteString as BS
 import Data.Int (Int64)
 import Data.List (find)
 import Data.List.NonEmpty (NonEmpty)
@@ -79,6 +96,7 @@ createTables h = do
     \    id INTEGER PRIMARY KEY, \
     \    thread_id INTEGER NOT NULL REFERENCES threads(id) ON DELETE CASCADE, \
     \    text TEXT NOT NULL, \
+    \    text BLOB, \
     \    created_at TEXT NOT NULL DEFAULT (datetime('now')) \
     \)"
   SQLite.execute_
@@ -88,20 +106,13 @@ createTables h = do
     \    subject TEXT NOT NULL \
     \)"
 
--- SQLite.execute_
---   (hConn h)
---   "CREATE UNIQUE INDEX IF NOT EXISTS users_address ON users(address)"
--- SQLite.execute_
---   (hConn h)
---   "CREATE UNIQUE INDEX IF NOT EXISTS mails_to ON mails(id, \"to\")"
-
 data CreatePost = CreatePost
   { cpText :: T.Text
   , cpThreadId :: Int64
   }
   deriving (Show)
 
-data CreateThread = CreateThread
+newtype CreateThread = CreateThread
   { ctSubject :: T.Text
   }
   deriving (Show)
@@ -119,6 +130,7 @@ data Post = Post
   { pId :: Int64
   , pThreadId :: Int64
   , pText :: T.Text
+  , pImage :: Maybe ByteString
   , pCreated :: Time.UTCTime
   }
   deriving (Show)
@@ -134,6 +146,7 @@ instance SQLite.FromRow Post where
   fromRow =
     Post
       <$> SQLite.field
+      <*> SQLite.field
       <*> SQLite.field
       <*> SQLite.field
       <*> SQLite.field
@@ -203,7 +216,7 @@ groupPosts :: [ThreadPostRow] -> [Thread]
 groupPosts [] = []
 groupPosts (r : rs) = t : groupPosts rest
  where
-  (same, rest) = span (\row -> tprThreadId r == tprThreadId row) rs
+  (same, rest) = span (\row -> tprThreadId r == tprPostThreadId row) rs
   op =
     Post
       { pId = tprPostId r
