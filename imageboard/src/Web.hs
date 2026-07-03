@@ -159,11 +159,8 @@ threadView Thread{..} = template tSubject $ do
     div_ $ input_ [name_ "image", type_ "file"]
     div_ $ button_ "Post"
   hr_ []
-  span_ $ img_ [src_ $ "/uploads/" <> T.pack (show (pId op))]
   toHtml tSubject
   traverse_ postView tPosts
- where
-  op = NL.head tPosts
 
 postView :: Post -> Html ()
 postView Post{..} = div_ $ do
