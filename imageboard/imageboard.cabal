@@ -23,23 +23,19 @@ library
     , directory
     , exceptions
     , fast-logger
-    , filelock
     , filepath
     , lens
-    , lifted-base
     , lucid2
-    , mbox
     , http-types
     , mtl
     , multipart
     , random
-    , resource-pool
     , scotty
     , sqlite-simple
     , text
     , time
     , uuid
-    , xss-sanitize
+    , wai-extra
     , yaml
 
 executable imageboard

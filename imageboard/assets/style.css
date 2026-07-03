@@ -110,6 +110,10 @@ p,
   margin-bottom: 1.3rem;
 }
 
+img {
+  height: 150px;
+}
+
 h1,
 .retro-h1,
 h2,
