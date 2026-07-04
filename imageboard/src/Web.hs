@@ -97,14 +97,14 @@ app h = do
   Scotty.post "/newPost/:tId" $ do
     tId <- Scotty.pathParam "tId"
     pText <- Scotty.formParam "text"
-    files <- Scotty.files
-    case files of
-      [] -> do
+    [(_, pImage)] <- Scotty.files
+    case fileContent pImage of
+      "" -> do
         void $ liftIO $ Database.createPost (hDatabase h) (Database.CreatePost pText tId False)
         Scotty.redirect $ TL.pack ("/thread/" <> show tId)
-      [(_, pImage)] -> do
+      image -> do
         pId <- liftIO $ Database.createPost (hDatabase h) (Database.CreatePost pText tId True)
-        liftIO $ LBS.writeFile ("uploads/" <> show pId) (fileContent pImage)
+        liftIO $ LBS.writeFile ("uploads/" <> show pId) image
         Scotty.redirect $ TL.pack ("/thread/" <> show tId)
 
   Scotty.get "/assets/style.css" $ do
