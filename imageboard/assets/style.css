@@ -52,10 +52,6 @@ pre {
     page-break-inside: avoid;
   }
 
-  img {
-    max-width: 100% !important;
-  }
-
   p,
   h2,
   h3 {
@@ -108,10 +104,6 @@ p,
 .retro-p {
   font-size: 1rem;
   margin-bottom: 1.3rem;
-}
-
-img {
-  height: 150px;
 }
 
 h1,
@@ -210,3 +202,19 @@ textarea {
   width: 250px;
   height: 60px;
 }
+
+.posts {
+  display: flex;
+  gap: 1em;
+}
+
+.posts img {
+  max-width: 200px;
+  max-height: 200px;
+  object-fit: contain;
+}
+
+/* img { */
+/*   height: 150px; */
+/* } */
+

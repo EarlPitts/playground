@@ -136,19 +136,18 @@ index threads = template "index" $ do
     div_ $ input_ [name_ "image", type_ "file"]
     div_ $ button_ "Post"
   hr_ []
-  traverse_ threadPreview threads
+  traverse_ (\t -> threadPreview t >> hr_ []) threads
 
 threadPreview :: Thread -> Html ()
-threadPreview Thread{..} = div_ $ do
-  span_ $ img_ [src_ $ "/uploads/" <> T.pack (show (pId op))]
+threadPreview Thread{..} = div_ [class_ "posts"] $ do
+  img_ [src_ $ "/uploads/" <> T.pack (show (pId op))]
   div_ $ do
     span_ $ toHtml tSubject
     " "
     span_ $ toHtml (show $ pCreated op)
     " "
     span_ $ a_ [href_ $ T.pack $ "thread/" <> show tId] "Reply"
-  p_ $ toHtml (pText op)
-  hr_ []
+    p_ $ toHtml (pText op)
  where
   op = NL.head tPosts
 
@@ -161,13 +160,13 @@ threadView Thread{..} = template tSubject $ do
     div_ $ button_ "Post"
   hr_ []
   toHtml tSubject
-  traverse_ postView tPosts
+  traverse_ (\p -> postView p >> hr_ []) tPosts
 
 postView :: Post -> Html ()
-postView Post{..} = div_ $ do
+postView Post{..} = div_ [class_ "posts"] $ do
   when pWithImage (span_ $ img_ [src_ $ "/uploads/" <> T.pack (show pId)])
-  span_ $ toHtml (show pCreated)
-  " "
-  span_ $ toHtml (show pId)
-  p_ $ toHtml pText
-  hr_ []
+  div_ $ do
+    span_ $ toHtml (show pCreated)
+    " "
+    span_ $ toHtml (show pId)
+    p_ $ toHtml pText
