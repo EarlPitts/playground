@@ -16,29 +16,20 @@ module Database (
   createPost,
   createThread,
   withHandle,
-)
-where
+) where
 
-import Control.Exception (Exception, catch, throwIO)
-import Control.Exception.Base (bracket)
-import Control.Monad (replicateM, void)
+import Control.Exception
 import qualified Data.Aeson as Aeson
-import Data.ByteString (ByteString (..))
-import qualified Data.ByteString as BS
 import Data.Int (Int64)
-import Data.List (find)
 import Data.List.NonEmpty (NonEmpty)
-import System.Directory (createDirectoryIfMissing)
 import qualified Data.List.NonEmpty as NL
 import Data.Maybe (fromMaybe)
 import Data.Monoid (Last (..))
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import qualified Data.Text.Lazy as TL
 import qualified Data.Time as Time
 import Database.SQLite.Simple (Connection, Only (..))
 import qualified Database.SQLite.Simple as SQLite
-import System.Random (randomRIO)
+import System.Directory (createDirectoryIfMissing)
 
 data Error
   = Constraint String

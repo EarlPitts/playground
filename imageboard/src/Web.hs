@@ -1,32 +1,29 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Web where
+module Web (
+  Handle (..),
+  Config (..),
+  withHandle,
+  run
+) where
 
 import Control.Applicative (empty, (<|>))
-import Control.Monad (forM_, void, when)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.Reader (ReaderT, asks, runReaderT)
+import Control.Monad (void, when)
 import Control.Monad.Trans (liftIO)
 import qualified Data.Aeson as A
-import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Data.Foldable (traverse_)
 import qualified Data.List.NonEmpty as NL
 import Data.Maybe (fromMaybe)
-import Data.Monoid ((<>))
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import qualified Data.Text.IO as TIO
 import qualified Data.Text.Lazy as TL
-import qualified Data.Time as Time
 import Database (Post (..), Thread (..))
-import qualified Database as Database
-import Debug.Trace
-import qualified Logger as Logger
+import qualified Database
+import qualified Logger
 import Lucid
 import Network.HTTP.Types.Status (status404)
-import Network.Wai.Parse (fileContent, fileName)
+import Network.Wai.Parse (fileContent)
 import Web.Scotty (ScottyM)
 import qualified Web.Scotty as Scotty
 

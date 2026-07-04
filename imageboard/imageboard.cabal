@@ -8,24 +8,19 @@ library
   ghc-options:      -Wall
   exposed-modules:
     Database
-    Logger
     Imageboard
-    Web
+    Logger
     Paths_imageboard
+    Web
 
   build-depends:
     , aeson
-    , async
     , base
-    , base64-bytestring
-    , binary
     , bytestring
     , directory
-    , exceptions
-    , filepath
+    , http-types
     , lens
     , lucid2
-    , http-types
     , mtl
     , multipart
     , random

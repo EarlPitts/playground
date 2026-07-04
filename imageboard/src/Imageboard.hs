@@ -6,16 +6,12 @@ module Imageboard (
   main,
 ) where
 
-import Control.Concurrent (threadDelay)
-import qualified Control.Concurrent.Async as Async
-import Control.Monad (forM_, forever, void)
 import qualified Data.Aeson as A
-import Data.Monoid ((<>))
 import Data.Version (showVersion)
 import qualified Data.Yaml as Yaml
-import qualified Database as Database
-import qualified Logger as Logger
-import qualified Web as Web
+import qualified Database
+import qualified Logger
+import qualified Web
 
 import qualified Paths_imageboard
 import System.Environment (getArgs, getProgName)
@@ -56,8 +52,8 @@ main = do
   args <- getArgs
   progName <- getProgName
   case args of
-    -- [configPath] -> run configPath
     [] -> run "config.yaml"
+    [configPath] -> run configPath
     _ -> do
       IO.hPutStrLn IO.stderr $ "Usage: " ++ progName ++ " <conf>"
       exitFailure

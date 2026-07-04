@@ -1,7 +1,15 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Logger where
+module Logger (
+  Handle (..),
+  Config (..),
+  withHandle,
+  logDebug,
+  logInfo,
+  logWarn,
+  logError,
+) where
 
 import Control.Applicative (Alternative (..))
 import Control.Exception (bracket)
