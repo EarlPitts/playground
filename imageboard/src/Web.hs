@@ -90,6 +90,7 @@ app h = do
     [(_, pImage)] <- Scotty.files -- TODO
     tSubject <- Scotty.formParam "subject"
     tId <- liftIO $ Database.createThread (hDatabase h) (Database.CreateThread tSubject)
+    liftIO $ Logger.logInfo (hLogger h) $ "Created new thread with id " <> show tId
     pId <- liftIO $ Database.createPost (hDatabase h) (Database.CreatePost pText tId True)
     liftIO $ LBS.writeFile ("uploads/" <> show pId) (fileContent pImage)
     Scotty.redirect "/"

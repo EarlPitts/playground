@@ -84,7 +84,6 @@ new config = do
   let handle = Handle config conn
   createTables handle
   createDirectoryIfMissing False "uploads"
-  putStrLn "created table"
   pure handle
  where
   connString = fromMaybe "" $ getLast $ cDbPath config

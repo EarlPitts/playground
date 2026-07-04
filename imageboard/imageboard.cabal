@@ -22,7 +22,6 @@ library
     , bytestring
     , directory
     , exceptions
-    , fast-logger
     , filepath
     , lens
     , lucid2
@@ -34,7 +33,6 @@ library
     , sqlite-simple
     , text
     , time
-    , uuid
     , wai-extra
     , yaml
 
