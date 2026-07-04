@@ -28,6 +28,7 @@ import qualified Data.ByteString as BS
 import Data.Int (Int64)
 import Data.List (find)
 import Data.List.NonEmpty (NonEmpty)
+import System.Directory (createDirectoryIfMissing)
 import qualified Data.List.NonEmpty as NL
 import Data.Maybe (fromMaybe)
 import Data.Monoid (Last (..))
@@ -82,6 +83,7 @@ new config = do
   conn <- SQLite.open connString
   let handle = Handle config conn
   createTables handle
+  createDirectoryIfMissing False "uploads"
   putStrLn "created table"
   pure handle
  where
