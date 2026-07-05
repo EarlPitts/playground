@@ -214,7 +214,6 @@ textarea {
   object-fit: contain;
 }
 
-/* img { */
-/*   height: 150px; */
-/* } */
-
+.subject {
+  color: #e2d6a6;
+}

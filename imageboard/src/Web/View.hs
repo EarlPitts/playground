@@ -1,5 +1,5 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Web.View where
 
@@ -30,21 +30,25 @@ index threads = template "index" $ do
     div_ $ input_ [name_ "image", type_ "file", required_ "required"]
     div_ $ button_ "Post"
   hr_ []
-  traverse_ (\t -> threadPreview t >> hr_ []) threads
+  traverse_ threadPreview threads
 
 threadPreview :: Thread -> Html ()
-threadPreview Thread{..} = div_ [class_ "posts"] $ do
-  let imgPath = "/uploads/" <> T.pack (show (pId op))
-  a_ [href_ imgPath] (img_ [src_ $ imgPath <> "_thumb"])
-  div_ $ do
-    span_ $ b_ (toHtml tSubject)
-    " "
-    span_ $ toHtml (show $ pCreated op)
-    " "
-    span_ $ a_ [href_ $ T.pack $ "thread/" <> show tId] "Reply"
-    p_ $ toHtml (pText op)
+threadPreview Thread{..} = do
+  div_ [class_ "posts"] $ do
+    let imgPath = "/uploads/" <> T.pack (show (pId op))
+    a_ [href_ imgPath] (img_ [src_ $ imgPath <> "_thumb"])
+    div_ $ do
+      span_ [class_ "subject"] $ b_ (toHtml tSubject)
+      " "
+      span_ $ toHtml (show $ pCreated op)
+      " "
+      span_ $ a_ [href_ $ T.pack $ "thread/" <> show tId] "Reply"
+      p_ $ toHtml (pText op)
+  hr_ []
+  traverse_ (\p -> postView Nothing p >> hr_ []) last3
  where
-  op = NL.head tPosts
+  (op NL.:| rest) = tPosts
+  last3 = drop (length rest - 3) rest
 
 threadView :: Thread -> Html ()
 threadView Thread{..} = template tSubject $ do
@@ -56,10 +60,9 @@ threadView Thread{..} = template tSubject $ do
   hr_ []
   postView (Just tSubject) op
   hr_ []
-  traverse_ (\p -> postView Nothing p >> hr_ []) posts
+  traverse_ (\p -> postView Nothing p >> hr_ []) rest
  where
-  op = NL.head tPosts
-  posts = NL.tail tPosts
+  (op NL.:| rest) = tPosts
 
 postView :: Maybe Text -> Post -> Html ()
 postView subject Post{..} = div_ [class_ "posts"] $ do
@@ -69,7 +72,7 @@ postView subject Post{..} = div_ [class_ "posts"] $ do
   div_ $ do
     case subject of
       Nothing -> pure ()
-      Just s -> span_ $ b_ (toHtml s) <> " "
+      Just s -> span_ [class_ "subject"] $ b_ (toHtml s) <> " "
     span_ $ toHtml (show pCreated)
     " "
     span_ $ toHtml (show pId)

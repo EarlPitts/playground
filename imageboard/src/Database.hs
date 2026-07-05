@@ -216,8 +216,8 @@ groupPosts (r : rs) = t : groupPosts rest
             { pId = tprPostId row
             , pThreadId = tprThreadId row
             , pText = tprPostText row
-            , pWithImage = tprPostWithImage r
-            , pCreated = tprPostCreated r
+            , pWithImage = tprPostWithImage row
+            , pCreated = tprPostCreated row
             }
       )
       same
