@@ -31,17 +31,7 @@ import Database.SQLite.Simple (Connection, Only (..))
 import qualified Database.SQLite.Simple as SQLite
 import System.Directory (createDirectoryIfMissing)
 
-data Error
-  = Constraint String
-  | NotFound String
-
-instance Show Error where
-  show (Constraint msg) = msg
-  show (NotFound msg) = msg
-
-instance Exception Error
-
-data Config = Config
+newtype Config = Config
   { cDbPath :: Last String
   }
   deriving (Show)
