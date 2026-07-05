@@ -19,6 +19,10 @@
         haskellPackages = pkgs.haskell.packages.ghc96;
       in
       {
+        packages.default = pkgs.haskell.lib.justStaticExecutables (
+          haskellPackages.callCabal2nix "imageboard" ./. { }
+        );
+
         devShells.default = pkgs.mkShell {
           packages = with haskellPackages; [
             ghc
