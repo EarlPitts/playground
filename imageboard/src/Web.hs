@@ -1,24 +1,20 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
 
 module Web (
   Handle (..),
   Config (..),
   withHandle,
-  run
+  run,
 ) where
 
 import Control.Applicative (empty, (<|>))
-import Control.Monad (void, when)
+import Control.Monad (void)
 import Control.Monad.Trans (liftIO)
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as LBS
-import Data.Foldable (traverse_)
-import qualified Data.List.NonEmpty as NL
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
-import Database (Post (..), Thread (..))
 import qualified Database
 import qualified Logger
 import Lucid
@@ -26,6 +22,7 @@ import Network.HTTP.Types.Status (status404)
 import Network.Wai.Parse (fileContent)
 import Web.Scotty (ScottyM)
 import qualified Web.Scotty as Scotty
+import Web.View
 
 data Config = Config
   { cPort :: Maybe Int
@@ -113,57 +110,3 @@ app h = do
     fileId <- Scotty.pathParam "id"
     Scotty.setHeader "Content-Type" "image/jpeg"
     Scotty.file $ "uploads/" <> fileId
-
-template :: T.Text -> Html () -> Html ()
-template title body = doctypehtml_ $ do
-  head_ $ do
-    title_ $ toHtml title
-    link_ [rel_ "stylesheet", type_ "text/css", href_ "/assets/style.css"]
-  body_ $ do
-    header_ $ a_ [href_ "/"] "imageboard"
-    body
-
-index :: [Thread] -> Html ()
-index threads = template "index" $ do
-  p_ "Create new thread:"
-  form_ [method_ "post", enctype_ "multipart/form-data", action_ "/newThread"] $ do
-    -- input_ [name_ "name", placeholder_ "Anonymous", type_ "text"]
-    div_ $ input_ [name_ "subject", placeholder_ "Subject", type_ "text"]
-    div_ $ textarea_ [name_ "text"] ""
-    div_ $ input_ [name_ "image", type_ "file"]
-    div_ $ button_ "Post"
-  hr_ []
-  traverse_ (\t -> threadPreview t >> hr_ []) threads
-
-threadPreview :: Thread -> Html ()
-threadPreview Thread{..} = div_ [class_ "posts"] $ do
-  img_ [src_ $ "/uploads/" <> T.pack (show (pId op))]
-  div_ $ do
-    span_ $ toHtml tSubject
-    " "
-    span_ $ toHtml (show $ pCreated op)
-    " "
-    span_ $ a_ [href_ $ T.pack $ "thread/" <> show tId] "Reply"
-    p_ $ toHtml (pText op)
- where
-  op = NL.head tPosts
-
-threadView :: Thread -> Html ()
-threadView Thread{..} = template tSubject $ do
-  p_ "Create new post:"
-  form_ [method_ "post", enctype_ "multipart/form-data", action_ $ T.pack $ "/newPost/" <> show tId] $ do
-    div_ $ textarea_ [name_ "text"] ""
-    div_ $ input_ [name_ "image", type_ "file"]
-    div_ $ button_ "Post"
-  hr_ []
-  toHtml tSubject
-  traverse_ (\p -> postView p >> hr_ []) tPosts
-
-postView :: Post -> Html ()
-postView Post{..} = div_ [class_ "posts"] $ do
-  when pWithImage (span_ $ img_ [src_ $ "/uploads/" <> T.pack (show pId)])
-  div_ $ do
-    span_ $ toHtml (show pCreated)
-    " "
-    span_ $ toHtml (show pId)
-    p_ $ toHtml pText

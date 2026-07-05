@@ -12,6 +12,7 @@ library
     Logger
     Paths_imageboard
     Web
+    Web.View
 
   build-depends:
     , aeson
