@@ -7,10 +7,15 @@ module Web (
   run,
 ) where
 
+import Codec.Picture
+import Codec.Picture.Extra
+import Codec.Picture.Types
 import Control.Applicative (empty, (<|>))
 import Control.Monad (void)
 import Control.Monad.Trans (liftIO)
 import qualified Data.Aeson as A
+import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
@@ -82,24 +87,32 @@ app h = do
   Scotty.post "/newThread" $ do
     pText <- Scotty.formParam "text"
     [(_, pImage)] <- Scotty.files -- TODO
-    tSubject <- Scotty.formParam "subject"
-    tId <- liftIO $ Database.createThread (hDatabase h) (Database.CreateThread tSubject)
-    liftIO $ Logger.logInfo (hLogger h) $ "Created new thread with id " <> show tId
-    pId <- liftIO $ Database.createPost (hDatabase h) (Database.CreatePost pText tId True)
-    liftIO $ LBS.writeFile ("uploads/" <> show pId) (fileContent pImage)
-    Scotty.redirect "/"
+    let originalImage = LBS.toStrict $ fileContent pImage
+    case resizeImage originalImage of
+      Left _ -> do
+        Scotty.redirect "/"
+      Right thumbnail -> do
+        tSubject <- Scotty.formParam "subject"
+        tId <- liftIO $ Database.createThread (hDatabase h) (Database.CreateThread tSubject)
+        liftIO $ Logger.logInfo (hLogger h) $ "Created new thread with id " <> show tId
+        pId <- liftIO $ Database.createPost (hDatabase h) (Database.CreatePost pText tId True)
+        liftIO $ BS.writeFile ("uploads/" <> show pId) originalImage
+        liftIO $ BS.writeFile ("uploads/" <> show pId <> "_thumb") thumbnail
+        Scotty.redirect "/"
 
   Scotty.post "/newPost/:tId" $ do
     tId <- Scotty.pathParam "tId"
     pText <- Scotty.formParam "text"
     [(_, pImage)] <- Scotty.files
-    case fileContent pImage of
-      "" -> do
+    let originalImage = LBS.toStrict $ fileContent pImage
+    case resizeImage originalImage of
+      Left _ -> do
         void $ liftIO $ Database.createPost (hDatabase h) (Database.CreatePost pText tId False)
         Scotty.redirect $ TL.pack ("/thread/" <> show tId)
-      image -> do
+      Right thumbnail -> do
         pId <- liftIO $ Database.createPost (hDatabase h) (Database.CreatePost pText tId True)
-        liftIO $ LBS.writeFile ("uploads/" <> show pId) image
+        liftIO $ BS.writeFile ("uploads/" <> show pId) originalImage
+        liftIO $ BS.writeFile ("uploads/" <> show pId <> "_thumb") thumbnail
         Scotty.redirect $ TL.pack ("/thread/" <> show tId)
 
   Scotty.get "/assets/style.css" $ do
@@ -110,3 +123,17 @@ app h = do
     fileId <- Scotty.pathParam "id"
     Scotty.setHeader "Content-Type" "image/jpeg"
     Scotty.file $ "uploads/" <> fileId
+
+resizeImage :: ByteString -> Either () ByteString
+resizeImage original = case decodeImage original of
+  Left _ -> Left ()
+  Right image -> Right $ LBS.toStrict $ encodeJpeg (convertImage thumbnail)
+   where
+    img = convertRGB8 image
+    width = imageWidth img
+    height = imageHeight img
+    longer = max width height
+    factor = div longer 200
+    newWidth = round (fromIntegral width / fromIntegral factor)
+    newHeight = round (fromIntegral height / fromIntegral factor)
+    thumbnail = scaleBilinear newWidth newHeight img

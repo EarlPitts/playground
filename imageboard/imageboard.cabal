@@ -20,6 +20,8 @@ library
     , bytestring
     , directory
     , http-types
+    , JuicyPixels-extra
+    , JuicyPixels
     , lens
     , lucid2
     , mtl

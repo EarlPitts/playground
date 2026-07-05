@@ -35,7 +35,7 @@ index threads = template "index" $ do
 threadPreview :: Thread -> Html ()
 threadPreview Thread{..} = div_ [class_ "posts"] $ do
   let imgPath = "/uploads/" <> T.pack (show (pId op))
-  a_ [href_ imgPath] (img_ [src_ imgPath])
+  a_ [href_ imgPath] (img_ [src_ $ imgPath <> "_thumb"])
   div_ $ do
     span_ $ b_ (toHtml tSubject)
     " "
@@ -65,7 +65,7 @@ postView :: Maybe Text -> Post -> Html ()
 postView subject Post{..} = div_ [class_ "posts"] $ do
   when pWithImage $ do
     let imgPath = "/uploads/" <> T.pack (show pId)
-    a_ [href_ imgPath] (img_ [src_ imgPath])
+    a_ [href_ imgPath] (img_ [src_ $ imgPath <> "_thumb"])
   div_ $ do
     case subject of
       Nothing -> pure ()
