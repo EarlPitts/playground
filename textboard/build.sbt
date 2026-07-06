@@ -8,9 +8,11 @@ lazy val root = (project in file("."))
   .settings(
     organization := "home",
     name := "textboard",
-    version := "0.0.1-SNAPSHOT",
-    scalaVersion := "3.8.2",
+    scalaVersion := "3.8.4",
     libraryDependencies ++= Seq(
+      "io.circe" %% "circe-core" % CirceVersion,
+      "io.circe" %% "circe-generic" % CirceVersion,
+      "io.circe" %% "circe-parser" % CirceVersion,
       "org.http4s" %% "http4s-ember-server" % Http4sVersion,
       "org.http4s" %% "http4s-ember-client" % Http4sVersion,
       "org.http4s" %% "http4s-circe" % Http4sVersion,
@@ -18,11 +20,8 @@ lazy val root = (project in file("."))
       "org.scalameta" %% "munit" % MunitVersion % Test,
       "org.typelevel" %% "munit-cats-effect" % MunitCatsEffectVersion % Test,
       "ch.qos.logback" % "logback-classic" % LogbackVersion % Runtime,
-      "org.tpolecat" %% "doobie-core"      % "1.0.0-RC8",
+      "org.tpolecat" %% "doobie-core"   % "1.0.0-RC8",
+      "org.tpolecat" %% "doobie-hikari" % "1.0.0-RC8",
       "org.xerial" % "sqlite-jdbc" % "3.45.0.0"
-    ),
-    assembly / assemblyMergeStrategy := {
-      case "module-info.class" => MergeStrategy.discard
-      case x => (assembly / assemblyMergeStrategy).value.apply(x)
-    }
+    )
   )

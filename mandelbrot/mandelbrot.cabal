@@ -14,7 +14,7 @@ library
   import:           warnings
   exposed-modules:  Mandelbrot
   build-depends:
-    , base           ^>=4.18.2.1
+    , base
     , brick
     , split
     , terminal-size
@@ -28,7 +28,7 @@ executable mandelbrot
   ghc-options:      -O2 -threaded -rtsopts -with-rtsopts=-N
   main-is:          Main.hs
   build-depends:
-    , base        ^>=4.18.2.1
+    , base
     , mandelbrot
 
   hs-source-dirs:   app

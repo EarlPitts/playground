@@ -24,11 +24,17 @@ libraryDependencies += "io.circe" %% "circe-optics" % "0.15.0"
 libraryDependencies += "org.typelevel" %% "log4cats-slf4j" % "2.3.1"
 libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.5.6"
 libraryDependencies += "com.disneystreaming" %% "weaver-cats" % "0.8.4" % Test
+libraryDependencies += "dev.profunktor" %% "redis4cats-effects" % "2.0.3"
 
 
 testFrameworks += new TestFramework("weaver.framework.CatsEffect")
 
 scalaVersion := "3.8.1"
+
+scalacOptions ++= Seq(
+  "-Xlint:_",         // enable all linting warnings
+  // "-Werror"
+)
 
 watchTriggeredMessage := ((a, b, c) => None)
 watchStartMessage := ((a, b, c) => None)

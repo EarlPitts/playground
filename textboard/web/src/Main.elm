@@ -2,12 +2,11 @@ module Main exposing (..)
 
 import Browser
 import Html exposing (Html, button, div, input, pre, text)
-import Html.Attributes exposing (placeholder, type_, value)
+import Html.Attributes exposing (placeholder, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Http
 import Json.Decode exposing (Decoder, field, int, list, map2, string)
 import Json.Encode as Encode
-import Html.Attributes exposing (style)
 
 
 
@@ -50,10 +49,7 @@ postDecoder =
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( { text = "", posts = [] }
-    , Http.get
-        { url = "http://localhost:8080/posts"
-        , expect = Http.expectJson GotPosts (list postDecoder)
-        }
+    , fetchPosts
     )
 
 
@@ -89,12 +85,25 @@ update msg model =
 
         SendText text ->
             ( { model | text = "" }
-            , Http.post
-                { url = "http://localhost:8080/posts"
-                , expect = Http.expectString GotResponse
-                , body = Http.jsonBody (Encode.object [ ( "text", Encode.string text ) ])
-                }
+            , sendPost text
             )
+
+
+fetchPosts : Cmd Msg
+fetchPosts =
+    Http.get
+        { url = "http://localhost:8080/posts"
+        , expect = Http.expectJson GotPosts (list postDecoder)
+        }
+
+
+sendPost : String -> Cmd Msg
+sendPost text =
+    Http.post
+        { url = "http://localhost:8080/posts"
+        , expect = Http.expectString GotResponse
+        , body = Http.jsonBody (Encode.object [ ( "text", Encode.string text ) ])
+        }
 
 
 
