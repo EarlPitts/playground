@@ -16,17 +16,17 @@
       system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        haskellPackages = pkgs.haskell.packages.ghc910;
+        haskell = pkgs.haskellPackages;
       in
       {
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
             # Haskell
-            haskellPackages.ghc
-            haskellPackages.cabal-install
-            haskellPackages.haskell-language-server
-            haskellPackages.hlint
-            haskellPackages.cabal-fmt
+            haskell.ghc
+            haskell.cabal-install
+            haskell.haskell-language-server
+            haskell.hlint
+            haskell.cabal-fmt
 
             # Scala
             openjdk
