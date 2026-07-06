@@ -1,5 +1,5 @@
 {
-  description = "Haskell flake";
+  description = "Toolchains";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -16,26 +16,28 @@
       system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        haskellPackages = pkgs.haskell.packages.ghc96;
+        haskellPackages = pkgs.haskell.packages.ghc910;
       in
       {
-        packages.default = pkgs.haskell.lib.justStaticExecutables (
-          haskellPackages.callCabal2nix "imageboard" ./. { }
-        );
-
         devShells.default = pkgs.mkShell {
-          packages = with haskellPackages; [
-            ghc
-            cabal-install
-            haskell-language-server
-            hlint
-            cabal-fmt
-            pkgs.sqlite
-            pkgs.pkg-config
+          packages = with pkgs; [
+            # Haskell
+            haskellPackages.ghc
+            haskellPackages.cabal-install
+            haskellPackages.haskell-language-server
+            haskellPackages.hlint
+            haskellPackages.cabal-fmt
+
+            # Scala
+            openjdk
+            sbt
+            coursier
+
+            # Misc
+            sqlite
           ];
 
           buildInputs = [
-            pkgs.libpq
             pkgs.zlib
           ];
         };
