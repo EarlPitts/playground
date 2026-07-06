@@ -29,12 +29,9 @@ libraryDependencies += "dev.profunktor" %% "redis4cats-effects" % "2.0.3"
 
 testFrameworks += new TestFramework("weaver.framework.CatsEffect")
 
-scalaVersion := "3.8.1"
+scalaVersion := "3.8.4"
 
-scalacOptions ++= Seq(
-  "-Xlint:_",         // enable all linting warnings
-  // "-Werror"
-)
+scalacOptions ++= Seq("-Werror")
 
 watchTriggeredMessage := ((a, b, c) => None)
 watchStartMessage := ((a, b, c) => None)
