@@ -9,6 +9,8 @@ module Web (
 
 import Codec.Picture
 import Codec.Picture.Extra
+import Codec.Picture.Metadata (Keys (Format), Metadatas, SourceFormat (..))
+import qualified Codec.Picture.Metadata as M
 import Codec.Picture.Types
 import Control.Applicative (empty, (<|>))
 import Control.Monad (void)
@@ -88,32 +90,41 @@ app h = do
     pText <- Scotty.formParam "text"
     [(_, pImage)] <- Scotty.files -- TODO
     let originalImage = LBS.toStrict $ fileContent pImage
-    case resizeImage originalImage of
-      Left _ -> do
-        Scotty.redirect "/"
-      Right thumbnail -> do
-        tSubject <- Scotty.formParam "subject"
-        tId <- liftIO $ Database.createThread (hDatabase h) (Database.CreateThread tSubject)
-        liftIO $ Logger.logInfo (hLogger h) $ "Created new thread with id " <> show tId
-        pId <- liftIO $ Database.createPost (hDatabase h) (Database.CreatePost pText tId True)
-        liftIO $ BS.writeFile ("uploads/" <> show pId) originalImage
-        liftIO $ BS.writeFile ("uploads/" <> show pId <> "_thumb") thumbnail
-        Scotty.redirect "/"
+    case decodeImageWithMetadata originalImage of
+      Left _ -> Scotty.redirect "/"
+      Right (image, metadata) -> do
+        let (Just format) = imageFormat metadata
+        if format `elem` [SourceJpeg] -- , SourcePng]
+          then do
+            let thumbnail = makeThumbnail image
+            tSubject <- Scotty.formParam "subject"
+            tId <- liftIO $ Database.createThread (hDatabase h) (Database.CreateThread tSubject)
+            liftIO $ Logger.logInfo (hLogger h) $ "Created new thread with id " <> show tId
+            pId <- liftIO $ Database.createPost (hDatabase h) (Database.CreatePost pText tId True)
+            liftIO $ BS.writeFile ("uploads/" <> show pId) originalImage
+            liftIO $ BS.writeFile ("uploads/" <> show pId <> "_thumb") thumbnail
+            Scotty.redirect "/"
+          else Scotty.redirect "/"
 
   Scotty.post "/newPost/:tId" $ do
     tId <- Scotty.pathParam "tId"
     pText <- Scotty.formParam "text"
     [(_, pImage)] <- Scotty.files
     let originalImage = LBS.toStrict $ fileContent pImage
-    case resizeImage originalImage of
+    case decodeImageWithMetadata originalImage of
       Left _ -> do
         void $ liftIO $ Database.createPost (hDatabase h) (Database.CreatePost pText tId False)
         Scotty.redirect $ TL.pack ("/thread/" <> show tId)
-      Right thumbnail -> do
-        pId <- liftIO $ Database.createPost (hDatabase h) (Database.CreatePost pText tId True)
-        liftIO $ BS.writeFile ("uploads/" <> show pId) originalImage
-        liftIO $ BS.writeFile ("uploads/" <> show pId <> "_thumb") thumbnail
-        Scotty.redirect $ TL.pack ("/thread/" <> show tId)
+      Right (image, metadata) -> do
+        let (Just format) = imageFormat metadata
+        if format `elem` [SourceJpeg]
+          then do
+            let thumbnail = makeThumbnail image
+            pId <- liftIO $ Database.createPost (hDatabase h) (Database.CreatePost pText tId True)
+            liftIO $ BS.writeFile ("uploads/" <> show pId) originalImage
+            liftIO $ BS.writeFile ("uploads/" <> show pId <> "_thumb") thumbnail
+            Scotty.redirect $ TL.pack ("/thread/" <> show tId)
+          else Scotty.redirect "/"
 
   Scotty.get "/assets/style.css" $ do
     Scotty.setHeader "Content-Type" "text/css"
@@ -124,16 +135,21 @@ app h = do
     Scotty.setHeader "Content-Type" "image/jpeg"
     Scotty.file $ "uploads/" <> fileId
 
-resizeImage :: ByteString -> Either () ByteString
-resizeImage original = case decodeImage original of
-  Left _ -> Left ()
-  Right image -> Right $ LBS.toStrict $ encodeJpeg (convertImage thumbnail)
-   where
-    img = convertRGB8 image
-    width = imageWidth img
-    height = imageHeight img
-    longer = max width height
-    factor = div longer 200
-    newWidth = round (fromIntegral width / fromIntegral factor)
-    newHeight = round (fromIntegral height / fromIntegral factor)
-    thumbnail = scaleBilinear newWidth newHeight img
+imageFormat :: Metadatas -> Maybe SourceFormat
+imageFormat ms = M.lookup Format ms
+
+makeThumbnail :: DynamicImage -> ByteString
+makeThumbnail = resizeImage 200
+
+resizeImage :: Int -> DynamicImage -> ByteString
+resizeImage size image =
+  LBS.toStrict $ encodeJpeg (convertImage thumbnail)
+ where
+  img = convertRGB8 image
+  width = imageWidth img
+  height = imageHeight img
+  longer = max width height
+  factor = div longer size
+  newWidth = round (fromIntegral width / fromIntegral factor)
+  newHeight = round (fromIntegral height / fromIntegral factor)
+  thumbnail = scaleBilinear newWidth newHeight img
