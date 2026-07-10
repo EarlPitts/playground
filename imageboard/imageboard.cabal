@@ -8,6 +8,7 @@ library
   ghc-options:      -Wall
   exposed-modules:
     Database
+    Image
     Imageboard
     Logger
     Paths_imageboard
@@ -20,8 +21,8 @@ library
     , bytestring
     , directory
     , http-types
-    , JuicyPixels-extra
     , JuicyPixels
+    , JuicyPixels-extra
     , lens
     , lucid2
     , mtl

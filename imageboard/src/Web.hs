@@ -10,29 +10,21 @@ module Web (
   run,
 ) where
 
-import Codec.Picture hiding (Image)
-import Codec.Picture.Extra
-import Codec.Picture.Metadata (Keys (Format), Metadatas, SourceFormat (..))
-import qualified Codec.Picture.Metadata as M
-import Codec.Picture.Types (convertImage)
 import Control.Applicative (empty, (<|>))
 import Control.Monad (void)
 import Control.Monad.Trans (liftIO)
 import qualified Data.Aeson as A
-import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as C8
-import qualified Data.ByteString.Lazy as LBS
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import qualified Database
 import qualified Logger
+import Image
 import Lucid
 import Network.HTTP.Types.Status (status404)
-import Network.Wai.Parse (FileInfo (fileName), fileContent)
-import Web.Scotty (File, ScottyM)
+import Web.Scotty (ScottyM)
 import qualified Web.Scotty as Scotty
 import Web.View
 
@@ -77,14 +69,6 @@ run :: Handle -> IO ()
 run h = Scotty.scotty port (app h)
  where
   port = fromMaybe 8000 $ cPort (hConfig h)
-
-data Image = Image
-  { iThumbPath :: FilePath
-  , iPath :: FilePath
-  , iThumb :: ByteString
-  , iOriginal :: ByteString
-  , iFilename :: String
-  }
 
 app :: Handle -> ScottyM ()
 app h = do
@@ -140,40 +124,3 @@ newThread h tSubject pText Image{..} = do
   void $ Database.createPost (hDatabase h) (Database.CreatePost pText tId (Just iFilename))
   BS.writeFile iPath iOriginal
   BS.writeFile iThumbPath iThumb
-
-getImage :: [File LBS.ByteString] -> Maybe Image
-getImage [(_, fileInfo)] = case decodeImageWithMetadata image of
-  Left _ -> Nothing
-  Right (decodedImage, metadata) -> do
-    format <- imageFormat metadata
-    iThumb <- makeThumbnail decodedImage format
-    let iThumbPath = "uploads/thumb_" <> filename
-        iPath = "uploads/" <> filename
-        iOriginal = image
-        iFilename = filename
-     in Just Image{..}
- where
-  image = LBS.toStrict $ fileContent fileInfo
-  filename = C8.unpack $ fileName fileInfo
-getImage _ = Nothing
-
-imageFormat :: Metadatas -> Maybe SourceFormat
-imageFormat ms = M.lookup Format ms
-
-makeThumbnail :: DynamicImage -> SourceFormat -> Maybe ByteString
-makeThumbnail = resizeImage 200
-
-resizeImage :: Int -> DynamicImage -> SourceFormat -> Maybe ByteString
-resizeImage size image = \case
-  SourceJpeg -> Just $ LBS.toStrict $ encodeJpeg (convertImage thumbnail)
-  SourcePng -> Just $ LBS.toStrict $ encodePng @PixelRGB8 (convertImage thumbnail)
-  _ -> Nothing
- where
-  img = convertRGB8 image
-  width = imageWidth img
-  height = imageHeight img
-  longer = max width height
-  factor = div longer size
-  newWidth = round @Double (fromIntegral width / fromIntegral factor)
-  newHeight = round @Double (fromIntegral height / fromIntegral factor)
-  thumbnail = scaleBilinear newWidth newHeight img
