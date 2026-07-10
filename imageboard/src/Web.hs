@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Web (
@@ -9,11 +10,11 @@ module Web (
   run,
 ) where
 
-import Codec.Picture
+import Codec.Picture hiding (Image)
 import Codec.Picture.Extra
 import Codec.Picture.Metadata (Keys (Format), Metadatas, SourceFormat (..))
 import qualified Codec.Picture.Metadata as M
-import Codec.Picture.Types
+import Codec.Picture.Types (convertImage)
 import Control.Applicative (empty, (<|>))
 import Control.Monad (void)
 import Control.Monad.Trans (liftIO)
@@ -22,19 +23,16 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as LBS
-import Data.List (find)
+import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
-import Data.Text (splitOn)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import qualified Database
-import Debug.Trace (traceShowId)
 import qualified Logger
 import Lucid
 import Network.HTTP.Types.Status (status404)
 import Network.Wai.Parse (FileInfo (fileName), fileContent)
-import System.Directory (listDirectory)
-import Web.Scotty (ScottyM)
+import Web.Scotty (File, ScottyM)
 import qualified Web.Scotty as Scotty
 import Web.View
 
@@ -80,6 +78,14 @@ run h = Scotty.scotty port (app h)
  where
   port = fromMaybe 8000 $ cPort (hConfig h)
 
+data Image = Image
+  { iThumbPath :: FilePath
+  , iPath :: FilePath
+  , iThumb :: ByteString
+  , iOriginal :: ByteString
+  , iFilename :: String
+  }
+
 app :: Handle -> ScottyM ()
 app h = do
   Scotty.get "/" $ do
@@ -95,45 +101,21 @@ app h = do
 
   Scotty.post "/newThread" $ do
     pText <- Scotty.formParam "text"
-    [(_, pImage)] <- Scotty.files -- TODO
-    let originalImage = LBS.toStrict $ fileContent pImage
-        filename = C8.unpack $ fileName pImage
-    case decodeImageWithMetadata originalImage of
-      Left _ -> Scotty.redirect "/"
-      Right (image, metadata) -> do
-        let (Just format) = imageFormat metadata
-        if format `elem` [SourceJpeg, SourcePng]
-          then do
-            let thumbnail = makeThumbnail image format
-            tSubject <- Scotty.formParam "subject"
-            tId <- liftIO $ Database.createThread (hDatabase h) (Database.CreateThread tSubject)
-            liftIO $ Logger.logInfo (hLogger h) $ "Created new thread with id " <> show tId
-            liftIO $ Database.createPost (hDatabase h) (Database.CreatePost pText tId (Just filename))
-            liftIO $ BS.writeFile ("uploads/" <> filename) originalImage
-            liftIO $ BS.writeFile ("uploads/" <> "thumb_" <> filename) thumbnail
-            Scotty.redirect "/"
-          else Scotty.redirect "/"
+    tSubject <- Scotty.formParam "subject"
+    files <- Scotty.files
+    case getImage files of
+      Nothing -> Scotty.redirect "/"
+      Just image -> do
+        liftIO $ newThread h tSubject pText image
+        Scotty.redirect "/"
 
   Scotty.post "/newPost/:tId" $ do
     tId <- Scotty.pathParam "tId"
     pText <- Scotty.formParam "text"
-    [(_, pImage)] <- Scotty.files
-    let originalImage = LBS.toStrict $ fileContent pImage
-        filename = C8.unpack $ fileName pImage
-    case decodeImageWithMetadata originalImage of
-      Left _ -> do
-        void $ liftIO $ Database.createPost (hDatabase h) (Database.CreatePost pText tId Nothing)
-        Scotty.redirect $ TL.pack ("/thread/" <> show tId)
-      Right (image, metadata) -> do
-        let (Just format) = imageFormat metadata
-        if format `elem` [SourceJpeg, SourcePng]
-          then do
-            let thumbnail = makeThumbnail image format
-            liftIO $ Database.createPost (hDatabase h) (Database.CreatePost pText tId (Just filename))
-            liftIO $ BS.writeFile ("uploads/" <> filename) originalImage
-            liftIO $ BS.writeFile ("uploads/" <> "thumb_" <> filename) thumbnail
-            Scotty.redirect $ TL.pack ("/thread/" <> show tId)
-          else Scotty.redirect "/"
+    files <- Scotty.files
+    let image = getImage files
+    liftIO $ newPost h tId pText image
+    Scotty.redirect $ TL.pack ("/thread/" <> show tId)
 
   Scotty.get "/assets/style.css" $ do
     Scotty.setHeader "Content-Type" "text/css"
@@ -142,6 +124,41 @@ app h = do
   Scotty.get "/uploads/:filename" $ do
     path <- Scotty.pathParam "filename"
     Scotty.file $ "uploads/" <> path
+
+newPost :: Handle -> Int64 -> T.Text -> Maybe Image -> IO ()
+newPost h tId pText = \case
+  Nothing -> void $ Database.createPost (hDatabase h) (Database.CreatePost pText tId Nothing)
+  Just Image{..} -> do
+    Database.createPost (hDatabase h) (Database.CreatePost pText tId (Just iFilename))
+    BS.writeFile iPath iOriginal
+    BS.writeFile iThumbPath iThumb
+
+newThread :: Handle -> T.Text -> T.Text -> Image -> IO ()
+newThread h tSubject pText Image{..} = do
+  tId <- Database.createThread (hDatabase h) (Database.CreateThread tSubject)
+  Logger.logInfo (hLogger h) $ "Created new thread with id " <> show tId
+  void $ Database.createPost (hDatabase h) (Database.CreatePost pText tId (Just iFilename))
+  BS.writeFile iPath iOriginal
+  BS.writeFile iThumbPath iThumb
+
+getImage :: [File LBS.ByteString] -> Maybe Image
+getImage [(_, fileInfo)] = case decodeImageWithMetadata image of
+  Left _ -> Nothing
+  Right (decodedImage, metadata) -> do
+    format <- imageFormat metadata
+    if format `elem` [SourceJpeg, SourcePng]
+      then
+        let iThumbPath = "uploads/thumb_" <> filename
+            iPath = "uploads/" <> filename
+            iThumb = makeThumbnail decodedImage format
+            iOriginal = image
+            iFilename = filename
+         in Just Image{..}
+      else Nothing
+ where
+  image = LBS.toStrict $ fileContent fileInfo
+  filename = C8.unpack $ fileName fileInfo
+getImage _ = Nothing
 
 imageFormat :: Metadatas -> Maybe SourceFormat
 imageFormat ms = M.lookup Format ms
