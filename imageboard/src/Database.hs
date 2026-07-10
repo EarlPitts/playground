@@ -76,7 +76,7 @@ createTables h = do
     \    id INTEGER PRIMARY KEY, \
     \    thread_id INTEGER NOT NULL REFERENCES threads(id) ON DELETE CASCADE, \
     \    text TEXT NOT NULL, \
-    \    with_image INTEGER NOT NULL DEFAULT 0, \
+    \    filename TEXT, \
     \    created_at TEXT NOT NULL DEFAULT (datetime('now')) \
     \)"
   SQLite.execute_
@@ -89,7 +89,7 @@ createTables h = do
 data CreatePost = CreatePost
   { cpText :: T.Text
   , cpThreadId :: Int64
-  , cpWithImage :: Bool
+  , cpFilename :: Maybe FilePath
   }
   deriving (Show)
 
@@ -104,7 +104,7 @@ data ThreadPostRow = ThreadPostRow
   , tprPostId :: Int64
   , tprPostThreadId :: Int64
   , tprPostText :: T.Text
-  , tprPostWithImage :: Bool
+  , tprPostFilename :: Maybe FilePath
   , tprPostCreated :: Time.UTCTime
   }
 
@@ -112,7 +112,7 @@ data Post = Post
   { pId :: Int64
   , pThreadId :: Int64
   , pText :: T.Text
-  , pWithImage :: Bool
+  , pFilename :: Maybe FilePath
   , pCreated :: Time.UTCTime
   }
   deriving (Show)
@@ -157,7 +157,7 @@ getThreads h = do
   rows <-
     SQLite.query_
       (hConn h)
-      "SELECT t.id, t.subject, p.id, p.thread_id, p.text, p.with_image, p.created_at \
+      "SELECT t.id, t.subject, p.id, p.thread_id, p.text, p.filename, p.created_at \
       \FROM threads t \
       \JOIN posts p ON p.thread_id = t.id \
       \ORDER BY t.id, p.id"
@@ -168,7 +168,7 @@ getThreadById h tId = do
   rows <-
     SQLite.query
       (hConn h)
-      "SELECT t.id, t.subject, p.id, p.thread_id, p.text, p.with_image, p.created_at \
+      "SELECT t.id, t.subject, p.id, p.thread_id, p.text, p.filename, p.created_at \
       \FROM threads t \
       \JOIN posts p ON p.thread_id = t.id \
       \WHERE t.id == ? \
@@ -192,7 +192,7 @@ threadFromRows rows@(op NL.:| _) =
       { pId = tprPostId r
       , pThreadId = tprThreadId r
       , pText = tprPostText r
-      , pWithImage = tprPostWithImage r
+      , pFilename = tprPostFilename r
       , pCreated = tprPostCreated r
       }
 
@@ -206,7 +206,7 @@ groupPosts (r : rs) = t : groupPosts rest
       { pId = tprPostId r
       , pThreadId = tprThreadId r
       , pText = tprPostText r
-      , pWithImage = tprPostWithImage r
+      , pFilename = tprPostFilename r
       , pCreated = tprPostCreated r
       }
   ps =
@@ -216,7 +216,7 @@ groupPosts (r : rs) = t : groupPosts rest
             { pId = tprPostId row
             , pThreadId = tprThreadId row
             , pText = tprPostText row
-            , pWithImage = tprPostWithImage row
+            , pFilename = tprPostFilename row
             , pCreated = tprPostCreated row
             }
       )
@@ -227,8 +227,8 @@ createPost :: Handle -> CreatePost -> IO Int64
 createPost h CreatePost{..} = do
   SQLite.execute
     (hConn h)
-    "INSERT INTO posts (thread_id, text, with_image) values (?,?,?)"
-    (cpThreadId, cpText, cpWithImage)
+    "INSERT INTO posts (thread_id, text, filename) values (?,?,?)"
+    (cpThreadId, cpText, cpFilename)
   SQLite.lastInsertRowId (hConn h)
 
 getPosts :: Handle -> IO [Post]

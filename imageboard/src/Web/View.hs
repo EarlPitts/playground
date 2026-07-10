@@ -6,6 +6,7 @@ module Web.View where
 import Control.Monad (when)
 import Data.Foldable (traverse_)
 import qualified Data.List.NonEmpty as NL
+import Data.Maybe (isJust)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Database (Post (..), Thread (..))
@@ -35,8 +36,12 @@ index threads = template "index" $ do
 threadPreview :: Thread -> Html ()
 threadPreview Thread{..} = do
   div_ [class_ "posts"] $ do
-    let imgPath = "/uploads/" <> T.pack (show (pId op))
-    a_ [href_ imgPath] (img_ [src_ $ imgPath <> "_thumb"])
+    case pFilename op of
+      Nothing -> pure () -- TODO bad model
+      Just filename -> do
+        let imgPath = "/uploads/" <> T.pack filename
+            thumbnail = "/uploads/thumb_" <> T.pack filename
+        a_ [href_ imgPath] (img_ [src_ $ thumbnail])
     div_ $ do
       span_ [class_ "subject"] $ b_ (toHtml tSubject)
       " "
@@ -66,9 +71,12 @@ threadView Thread{..} = template tSubject $ do
 
 postView :: Maybe Text -> Post -> Html ()
 postView subject Post{..} = div_ [class_ "posts"] $ do
-  when pWithImage $ do
-    let imgPath = "/uploads/" <> T.pack (show pId)
-    a_ [href_ imgPath] (img_ [src_ $ imgPath <> "_thumb"])
+  case pFilename of
+    Nothing -> pure ()
+    Just filename -> do
+      let imgPath = "/uploads/" <> T.pack filename
+          thumbnail = "/uploads/thumb_" <> T.pack filename
+      a_ [href_ imgPath] (img_ [src_ $ thumbnail])
   div_ $ do
     case subject of
       Nothing -> pure ()
