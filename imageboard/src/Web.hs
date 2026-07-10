@@ -129,7 +129,7 @@ newPost :: Handle -> Int64 -> T.Text -> Maybe Image -> IO ()
 newPost h tId pText = \case
   Nothing -> void $ Database.createPost (hDatabase h) (Database.CreatePost pText tId Nothing)
   Just Image{..} -> do
-    Database.createPost (hDatabase h) (Database.CreatePost pText tId (Just iFilename))
+    void $ Database.createPost (hDatabase h) (Database.CreatePost pText tId (Just iFilename))
     BS.writeFile iPath iOriginal
     BS.writeFile iThumbPath iThumb
 
@@ -146,15 +146,12 @@ getImage [(_, fileInfo)] = case decodeImageWithMetadata image of
   Left _ -> Nothing
   Right (decodedImage, metadata) -> do
     format <- imageFormat metadata
-    if format `elem` [SourceJpeg, SourcePng]
-      then
-        let iThumbPath = "uploads/thumb_" <> filename
-            iPath = "uploads/" <> filename
-            iThumb = makeThumbnail decodedImage format
-            iOriginal = image
-            iFilename = filename
-         in Just Image{..}
-      else Nothing
+    iThumb <- makeThumbnail decodedImage format
+    let iThumbPath = "uploads/thumb_" <> filename
+        iPath = "uploads/" <> filename
+        iOriginal = image
+        iFilename = filename
+     in Just Image{..}
  where
   image = LBS.toStrict $ fileContent fileInfo
   filename = C8.unpack $ fileName fileInfo
@@ -163,19 +160,20 @@ getImage _ = Nothing
 imageFormat :: Metadatas -> Maybe SourceFormat
 imageFormat ms = M.lookup Format ms
 
-makeThumbnail :: DynamicImage -> SourceFormat -> ByteString
+makeThumbnail :: DynamicImage -> SourceFormat -> Maybe ByteString
 makeThumbnail = resizeImage 200
 
-resizeImage :: Int -> DynamicImage -> SourceFormat -> ByteString
+resizeImage :: Int -> DynamicImage -> SourceFormat -> Maybe ByteString
 resizeImage size image = \case
-  SourceJpeg -> LBS.toStrict $ encodeJpeg (convertImage thumbnail)
-  SourcePng -> LBS.toStrict $ encodePng @PixelRGB8 (convertImage thumbnail)
+  SourceJpeg -> Just $ LBS.toStrict $ encodeJpeg (convertImage thumbnail)
+  SourcePng -> Just $ LBS.toStrict $ encodePng @PixelRGB8 (convertImage thumbnail)
+  _ -> Nothing
  where
   img = convertRGB8 image
   width = imageWidth img
   height = imageHeight img
   longer = max width height
   factor = div longer size
-  newWidth = round (fromIntegral width / fromIntegral factor)
-  newHeight = round (fromIntegral height / fromIntegral factor)
+  newWidth = round @Double (fromIntegral width / fromIntegral factor)
+  newHeight = round @Double (fromIntegral height / fromIntegral factor)
   thumbnail = scaleBilinear newWidth newHeight img
