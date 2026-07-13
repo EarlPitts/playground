@@ -13,7 +13,6 @@ executable replace
 
 library
   exposed-modules:
-    Scratch
     Algebra.BoolMonoids
     Algebra.KleisliEndo
     Algebra.MonadPlus
@@ -22,6 +21,8 @@ library
     Algorithms.DP.Fibo
     Algorithms.DP.Levenstein
     Algorithms.QuickSort
+    Architecture.MusicRecommender.Handle
+    Architecture.PureTime
     Architecture.RegistrationFlowIO
     Architecture.RegistrationFlowState
     Arrow
@@ -35,6 +36,7 @@ library
     DataStructures.Zipper
     DTO
     FoldsCompared
+    FreeMonad
     GameOfLife
     JSON
     MonadTrans
@@ -43,8 +45,10 @@ library
     Onion
     OnionWeb
     Persistence
+    Scratch
     Streaming
     Strictness
+    Testing.StateBasedTesting
     TransVsMTL
     TypelevelStuff.OpaqueTypes
     TypelevelStuff.PhantomTypes
@@ -84,22 +88,22 @@ library
     , hspec
     , lifted-async
     , managed
-    , monad-loops
     , monad-logger
+    , monad-loops
     , mtl
     , network
     , optparse-applicative
     , parsec
+    , protolude
     , QuickCheck
     , random
     , rio
     , scotty
+    , split
     , sqlite-simple
     , stm
-    , split
     , tasty
     , terminal-size
-    , protolude
     , text
     , time
     , transformers
