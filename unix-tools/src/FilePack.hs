@@ -1,5 +1,8 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ImpredicativeTypes #-}
 
 module FilePack where
 
@@ -20,6 +23,18 @@ import Text.Read (readEither)
 
 class Encode a where
   encode :: a -> ByteString
+  encode = BS.drop 4 . encodeWithSize
+  encodeWithSize :: a -> ByteString
+  encodeWithSize a =
+    let
+      s = encode a
+      l = fromIntegral $ BS.length s
+     in
+      word32ToByteString l <> s
+  {-# MINIMAL encode | encodeWithSize #-}
+
+class Decode a where
+  decode :: ByteString -> Either String a
 
 instance Encode String where
   encode = BC.pack
@@ -32,9 +47,26 @@ instance Encode ByteString where
 
 instance Encode Word32 where
   encode = word32ToByteString
+  encodeWithSize w =
+    word32ToByteString 4 <> encode w
 
 instance Decode Word32 where
   decode = byteStringToWord32
+
+instance Encode FileMode where
+  encode (CMode fmode) = encode fmode
+
+instance (Encode a, Encode b) => Encode (a, b) where
+  encode (a, b) = encodeWithSize a <> encodeWithSize b
+
+instance {-# OVERLAPPABLE #-} (Encode a) => Encode [a] where
+  encode = foldMap encode
+
+-- instance Encode FilePack where
+--   encode (FilePack a) = encode a
+
+instance Decode FileMode where
+  decode = fmap CMode . decode
 
 instance Decode ByteString where
   decode = Right
@@ -45,37 +77,39 @@ instance Decode Text where
 instance Decode String where
   decode = fmap T.unpack . decode
 
-class Decode a where
-  decode :: ByteString -> Either String a
+instance (Encode a) => Encode (FileData a) where
+  encode FileData{..} =
+    encodeWithSize fileName
+      <> encodeWithSize fileSize
+      <> encodeWithSize filePermissions
+      <> encodeWithSize fileContent
 
-data FileData = FileData
+data FileData a = FileData
   { fileName :: FilePath
   , fileSize :: Word32
   , filePermissions :: FileMode
-  , fileContent :: ByteString
+  , fileContent :: a
   }
   deriving (Show, Read, Eq)
 
-mkFileData ::
-  (Encode a) =>
-  FilePath ->
-  Word32 ->
-  FileMode ->
-  a ->
-  FileData
-mkFileData path size perm cont =
-  FileData path size perm (encode cont)
+-- mkFileData ::
+--   (Encode a) =>
+--   FilePath ->
+--   Word32 ->
+--   FileMode ->
+--   a ->
+--   FileData
+-- mkFileData path size perm cont =
+--   FileData path size perm (encode cont)
 
-newtype FilePack = FilePack
-  {getPackedFiles :: [FileData]}
-  deriving (Show, Eq, Read)
+newtype FilePack = FilePack [forall a. Encode a => a]
 
-packFiles :: FilePack -> ByteString
-packFiles = B64.encode . BC.pack . show
+-- packFiles :: FilePack -> ByteString
+-- packFiles = encode
 
-unpackFiles :: ByteString -> Either String FilePack
-unpackFiles serializedData =
-  B64.decode serializedData >>= readEither . BC.unpack
+-- unpackFiles :: ByteString -> Either String (FilePack a)
+-- unpackFiles serializedData =
+--   B64.decode serializedData >>= readEither . BC.unpack
 
 word32ToBytes :: Word32 -> (Word8, Word8, Word8, Word8)
 word32ToBytes word =
@@ -109,23 +143,23 @@ byteStringToWord32 bs = case BS.unpack bs of
 
 --------------------------------------------------------
 
-sampleFilePack :: FilePack
-sampleFilePack =
-  FilePack
-    [ mkFileData "stringFile" 0 0 ("hello string" :: String)
-    , mkFileData "textFile" 0 0 ("hello text" :: Text)
-    , mkFileData "binaryFile" 0 0 ("hello bytestring" :: ByteString)
-    ]
+-- sampleFilePack :: FilePack
+-- sampleFilePack =
+--   FilePack
+--     [ FileData "stringFile" 0 0 ("hello string" :: String)
+--     -- , FileData "textFile" 0 0 ("hello text" :: Text)
+--     -- , FileData "binaryFile" 0 0 ("hello bytestring" :: ByteString)
+--     ]
 
-testPackFile :: ByteString
-testPackFile = packFiles sampleFilePack
+-- testPackFile :: ByteString
+-- testPackFile = packFiles sampleFilePack
 
-testUnpackFile :: Either String FilePack
-testUnpackFile = unpackFiles testPackFile
+-- testUnpackFile :: Either String (FilePack a)
+-- testUnpackFile = unpackFiles testPackFile
 
-testRoundTrip :: FilePack -> Bool
-testRoundTrip pack =
-  Right pack == unpackFiles (packFiles pack)
+-- testRoundTrip :: (Eq a) => FilePack a -> Bool
+-- testRoundTrip pack =
+--   Right pack == unpackFiles (packFiles pack)
 
 showBinary :: Word8 -> String
 showBinary = printf "%b"

@@ -30,11 +30,12 @@ newtype Metrics = Metrics
   { metricsStore :: IORef AppMetrics
   }
 
+
 measureWith :: Metrics -> String -> a -> IO a
 measureWith (Metrics metricsRef) name f = do
   start <- getCurrentTime
 
-  let result = f
+  let !result = f
 
   end <- getCurrentTime
   let updateDurations = M.insertWith (+) name (diffUTCTime end start)

@@ -67,6 +67,14 @@ traverseDirectory' path action = do
     modifyIORef resultRef (action file :)
   readIORef resultRef
 
+traverseDirectoryIO :: FilePath -> (FilePath -> IO a) -> IO [a]
+traverseDirectoryIO path action = do
+  resultRef <- newIORef []
+  traverseDirectory path $ \file -> do
+    res <- action file
+    modifyIORef resultRef (res :)
+  readIORef resultRef
+
 largestContents :: FilePath -> IO BS.ByteString
 largestContents rootPath = do
   contentsRef <- newIORef BS.empty

@@ -1,6 +1,8 @@
 module Main where
 
 import HLess
+import Metrics
+import System.Environment
 
 main :: IO ()
-main = runHLess
+main = getArgs >>= directorySummaryWithMetrics . head
