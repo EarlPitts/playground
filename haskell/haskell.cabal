@@ -44,6 +44,7 @@ library
     OnionWeb
     Persistence
     Streaming
+    Strictness
     TransVsMTL
     TypelevelStuff.OpaqueTypes
     TypelevelStuff.PhantomTypes
@@ -84,6 +85,7 @@ library
     , lifted-async
     , managed
     , monad-loops
+    , monad-logger
     , mtl
     , network
     , optparse-applicative
@@ -94,7 +96,10 @@ library
     , scotty
     , sqlite-simple
     , stm
+    , split
     , tasty
+    , terminal-size
+    , protolude
     , text
     , time
     , transformers
