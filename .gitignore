@@ -1,0 +1,17 @@
+async_python/
+debsudoku.py
+git/
+haskell2/
+nix/
+promises/
+purescript/
+python/
+raylib/
+scheme/
+test.agda
+typescript/
+a.out
+agda
+**/ideas.md
+**/scratch.worksheet.sc
+**/*.beam
