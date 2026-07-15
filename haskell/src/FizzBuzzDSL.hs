@@ -1,4 +1,5 @@
 -- https://themonadreader.wordpress.com/wp-content/uploads/2014/04/fizzbuzz.pdf
+module FizzBuzzDSL where
 
 data Cmd = Skip | Halt | Print String
 
@@ -24,7 +25,7 @@ fb n = (base n . fizz n . buzz n) [Skip]
 
 step :: Cmd -> String -> String
 step Skip t = t
-step Halt t = ""
+step Halt _ = ""
 step (Print s) t = s ++ t
 
 eval :: Program -> String

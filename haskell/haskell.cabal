@@ -21,11 +21,13 @@ library
     Algorithms.DP.Fibo
     Algorithms.DP.Levenstein
     Algorithms.QuickSort
+    Alternative
     Architecture.MusicRecommender.Handle
     Architecture.PureTime
     Architecture.RegistrationFlowIO
     Architecture.RegistrationFlowState
     Arrow
+    Binary
     Bracket
     CellularAutomata
     Concurrency.BankAccount
@@ -35,9 +37,11 @@ library
     DataStructures.Grid
     DataStructures.Zipper
     DTO
+    FizzBuzzDSL
     FoldsCompared
     FreeMonad
     GameOfLife
+    HigherKindedTypes
     JSON
     MonadTrans
     Networking.ChatServer

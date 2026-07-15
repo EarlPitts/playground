@@ -1,3 +1,5 @@
+module Binary where
+
 data Bin = B | I Bin | O Bin deriving (Show, Eq)
 
 data Nat = Zero | Suc Nat deriving (Show, Eq)
