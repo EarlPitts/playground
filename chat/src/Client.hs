@@ -15,14 +15,35 @@ import qualified Data.Vector as V
 import Graphics.Vty (defaultConfig)
 import qualified Graphics.Vty as V
 import Graphics.Vty.Platform.Unix (mkVty)
-import Protolude hiding (head)
+import Protolude hiding (decodeUtf8, head)
+
+import Control.Concurrent (forkIO)
+import qualified Data.ByteString as BS
+import Network.Socket
+import Network.Socket.ByteString (recv, sendAll)
 
 main :: IO ()
 main = do
   chan <- newBChan 10
+
+  let host = "127.0.0.1"
+      port = "5000"
+  addr <- head <$> getAddrInfo Nothing (Just host) (Just port)
+  sock <- openSocket addr
+  connect sock (addrAddress addr)
+
+  _ <-
+    forkIO $
+      let loop = do
+            bs <- recv sock 4096
+            if BS.null bs
+              then pure ()
+              else writeBChan chan (either (const $ panic "couldn't decode") identity (decodeUtf8 bs)) >> loop
+       in loop
+
   let buildVty = mkVty defaultConfig
   initialVty <- buildVty
-  void $ M.customMain initialVty buildVty (Just chan) theApp (AppState emptyHistory emptyEditor)
+  void $ M.customMain initialVty buildVty (Just chan) theApp (AppState emptyHistory emptyEditor sock)
 
 dummyMsgs =
   V.fromList
@@ -35,7 +56,7 @@ dummyMsgs =
     ]
 
 emptyEditor = editor 2 (Just 1) ""
-emptyHistory = L.list 1 dummyMsgs 1
+emptyHistory = L.list 1 V.empty 1
 
 drawUI :: AppState -> [Widget Int]
 drawUI AppState{..} = [vBox [history sHistory, textBox sEditor]]
@@ -66,7 +87,9 @@ appEvent (T.VtyEvent e) = case e of
   V.EvKey (V.KEsc) [] -> M.halt
   V.EvKey (V.KEnter) [] -> do
     editorState <- gets sEditor
+    sock <- gets sSock
     let msg = head $ getEditContents editorState
+    liftIO $ sendAll sock (encodeUtf8 msg)
     modify (\s -> s{sHistory = L.list 1 (V.snoc (listElements $ sHistory s) (Own msg)) 1, sEditor = emptyEditor})
   _ -> do
     editorState <- gets sEditor
@@ -87,6 +110,7 @@ data Message
 data AppState = AppState
   { sHistory :: List Int Message
   , sEditor :: Editor Text Int
+  , sSock :: Socket
   }
 
 theApp :: M.App AppState Text Int

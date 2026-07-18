@@ -23,6 +23,7 @@ library
     , protolude
     , vector
     , vty
+    , bytestring
     , vty-unix
 
   hs-source-dirs:     src
