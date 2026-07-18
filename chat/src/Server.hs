@@ -1,10 +1,12 @@
 module Server where
 
+import qualified Data.ByteString as BS
 import Data.IORef
+import qualified Data.List.NonEmpty as NE
 import Network.Socket
 import Network.Socket.ByteString
-import qualified Data.List.NonEmpty as NE
 import Protolude
+import Data.List (delete)
 
 main :: IO ()
 main = do
@@ -15,6 +17,8 @@ main = do
   sock <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
   bind sock (addrAddress addr)
   listen sock 1024
+
+  putText "Started receiving connections"
 
   forever $ acceptConns sock socks
 
@@ -28,6 +32,9 @@ acceptConns sock socksRef = do
 handleUser :: Socket -> IORef [Socket] -> IO ()
 handleUser sock socksRef = do
   msg <- recv sock 1024
-  socks <- readIORef socksRef
-  traverse_ (flip send $ msg) socks
-  handleUser sock socksRef
+  if (BS.null msg)
+    then modifyIORef socksRef (delete sock)
+    else do
+      socks <- filter (/= sock) <$> readIORef socksRef
+      traverse_ (flip send $ msg) socks
+      handleUser sock socksRef
