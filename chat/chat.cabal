@@ -24,6 +24,7 @@ library
     , vector
     , vty
     , bytestring
+    , text
     , vty-unix
 
   hs-source-dirs:     src

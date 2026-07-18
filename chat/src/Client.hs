@@ -4,21 +4,24 @@ import Brick
 import qualified Brick.AttrMap as A
 import Brick.BChan
 import qualified Brick.Main as M
-import qualified Brick.Types as T
+import Brick.Types
 import Brick.Widgets.Border
 import Brick.Widgets.Border.Style
 import Brick.Widgets.Edit
 import Brick.Widgets.List as L
 import Data.List (head)
+import Data.Text (splitOn)
 import Data.Vector (Vector (..))
 import qualified Data.Vector as V
 import Graphics.Vty (defaultConfig)
 import qualified Graphics.Vty as V
 import Graphics.Vty.Platform.Unix (mkVty)
 import Protolude hiding (decodeUtf8, head)
+import System.Environment
 
 import Control.Concurrent (forkIO)
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as C8
 import Network.Socket
 import Network.Socket.ByteString (recv, sendAll)
 
@@ -26,11 +29,15 @@ main :: IO ()
 main = do
   chan <- newBChan 10
 
+  userName <- getEnv "USER"
+
   let host = "127.0.0.1"
       port = "5000"
   addr <- head <$> getAddrInfo Nothing (Just host) (Just port)
   sock <- openSocket addr
   connect sock (addrAddress addr)
+
+  sendAll sock (C8.pack userName)
 
   _ <-
     forkIO $
@@ -83,7 +90,7 @@ textBox =
     . renderEditor (\t -> txt $ head t) True
 
 appEvent :: BrickEvent Int Text -> EventM Int AppState ()
-appEvent (T.VtyEvent e) = case e of
+appEvent (VtyEvent e) = case e of
   V.EvKey (V.KEsc) [] -> M.halt
   V.EvKey (V.KEnter) [] -> do
     editorState <- gets sEditor
@@ -95,8 +102,9 @@ appEvent (T.VtyEvent e) = case e of
     editorState <- gets sEditor
     newEditorState <- nestEventM' editorState $ handleEditorEvent (VtyEvent e)
     modify (\s -> s{sEditor = newEditorState})
-appEvent (T.AppEvent msg) =
-  modify (\s -> s{sHistory = L.list 1 (V.snoc (listElements $ sHistory s) (Other "jani" msg)) 1}) -- TODO
+appEvent (AppEvent msg) = do
+  let [user,message] = splitOn "|" msg
+  modify (\s -> s{sHistory = L.list 1 (V.snoc (listElements $ sHistory s) (Other user message)) 1})
 appEvent _ = pure ()
 
 data Message

@@ -1,16 +1,22 @@
-module Server where
+module Server (main) where
 
 import qualified Data.ByteString as BS
 import Data.IORef
+import Data.List (delete)
 import qualified Data.List.NonEmpty as NE
 import Network.Socket
 import Network.Socket.ByteString
 import Protolude
-import Data.List (delete)
+
+data User = User
+  { uSock :: Socket
+  , uName :: ByteString
+  }
+  deriving (Show, Eq)
 
 main :: IO ()
 main = do
-  socks <- newIORef []
+  users <- newIORef []
 
   let hints = defaultHints{addrFlags = [AI_PASSIVE], addrSocketType = Stream}
   addr <- NE.head <$> getAddrInfo (Just hints) (Just "127.0.0.1") (Just "5000")
@@ -20,21 +26,25 @@ main = do
 
   putText "Started receiving connections"
 
-  forever $ acceptConns sock socks
+  forever $ acceptConns sock users
 
-acceptConns :: Socket -> IORef [Socket] -> IO ()
-acceptConns sock socksRef = do
+acceptConns :: Socket -> IORef [User] -> IO ()
+acceptConns sock usersRef = do
   (conn, _) <- accept sock
-  print "accepted connection"
-  modifyIORef socksRef (conn :)
-  void $ async $ handleUser conn socksRef
+  userName <- recv conn 1024
+  let user = User conn userName
 
-handleUser :: Socket -> IORef [Socket] -> IO ()
-handleUser sock socksRef = do
+  print "accepted connection"
+  modifyIORef usersRef (user :)
+
+  void $ async $ handleUser user usersRef
+
+handleUser :: User -> IORef [User] -> IO ()
+handleUser user@(User sock name) usersRef = do
   msg <- recv sock 1024
   if (BS.null msg)
-    then modifyIORef socksRef (delete sock)
+    then modifyIORef usersRef (delete user)
     else do
-      socks <- filter (/= sock) <$> readIORef socksRef
-      traverse_ (flip send $ msg) socks
-      handleUser sock socksRef
+      socks <- fmap uSock . filter (/= user) <$> readIORef usersRef
+      traverse_ (flip sendAll $ name <> "|" <> msg) socks
+      handleUser user usersRef
