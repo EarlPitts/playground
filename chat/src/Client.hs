@@ -1,4 +1,4 @@
-module Client where
+module Client (main) where
 
 import Brick
 import qualified Brick.AttrMap as A
@@ -19,6 +19,7 @@ import Graphics.Vty.Platform.Unix (mkVty)
 import Protolude hiding (decodeUtf8, head)
 import System.Environment
 
+import Brick.Focus
 import Control.Concurrent (forkIO)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
@@ -50,27 +51,20 @@ main = do
 
   let buildVty = mkVty defaultConfig
   initialVty <- buildVty
-  void $ M.customMain initialVty buildVty (Just chan) theApp (AppState emptyHistory emptyEditor sock)
+  void $ M.customMain initialVty buildVty (Just chan) theApp (AppState emptyHistory emptyEditor sock (focusRing [Editor, History]))
 
-dummyMsgs =
-  V.fromList
-    [ Own "hello"
-    , Other "John" "Hey!"
-    , Other "Mike" "Ho!"
-    , Own "Whatsup?"
-    , Other "John" "The sky!"
-    , Own "Haha!"
-    ]
+data Name
+  = Editor
+  | History
+  deriving (Show, Eq, Ord)
 
-emptyEditor = editor 2 (Just 1) ""
-emptyHistory = L.list 1 V.empty 1
+emptyEditor = editor Editor (Just 1) mempty
+emptyHistory = L.list History V.empty 1
 
-drawUI :: AppState -> [Widget Int]
+drawUI :: AppState -> [Widget Name]
 drawUI AppState{..} = [vBox [history sHistory, textBox sEditor]]
 
-data Event = NewMessage Text
-
-history :: List Int Message -> Widget Int
+history :: List Name Message -> Widget Name
 history messages =
   joinBorders $
     withBorderStyle unicode $
@@ -84,28 +78,38 @@ history messages =
             False
             messages
 
-textBox :: Editor Text Int -> Widget Int
+textBox :: Editor Text Name -> Widget Name
 textBox =
   borderWithLabel (txt "Reply")
     . renderEditor (\t -> txt $ head t) True
 
-appEvent :: BrickEvent Int Text -> EventM Int AppState ()
+appEvent :: BrickEvent Name Text -> EventM Name AppState ()
 appEvent (VtyEvent e) = case e of
   V.EvKey (V.KEsc) [] -> M.halt
+  -- V.EvKey (V.KChar '\t') [] -> do
+  --   curr <- gets (\s -> focusGetCurrent $ sFocus s)
+  --   liftIO $ appendFile "sajtFile.txt" (show curr)
+  --   modify (\s -> s{sFocus = focusNext $ sFocus s})
   V.EvKey (V.KEnter) [] -> do
     editorState <- gets sEditor
     sock <- gets sSock
     let msg = head $ getEditContents editorState
     liftIO $ sendAll sock (encodeUtf8 msg)
-    modify (\s -> s{sHistory = L.list 1 (V.snoc (listElements $ sHistory s) (Own msg)) 1, sEditor = emptyEditor})
+    modify (\s -> s{sHistory = listMoveToEnd $ listAppend (Own msg) (sHistory s), sEditor = emptyEditor})
   _ -> do
-    editorState <- gets sEditor
-    newEditorState <- nestEventM' editorState $ handleEditorEvent (VtyEvent e)
-    modify (\s -> s{sEditor = newEditorState})
+    AppState{..} <- get
+    newEditorState <- nestEventM' sEditor $ handleEditorEvent (VtyEvent e)
+    newHistoryState <- nestEventM' sHistory $ handleListEvent e
+    modify (\s -> s{sEditor = newEditorState, sHistory = newHistoryState})
 appEvent (AppEvent msg) = do
-  let [user,message] = splitOn "|" msg
-  modify (\s -> s{sHistory = L.list 1 (V.snoc (listElements $ sHistory s) (Other user message)) 1})
+  let [user, message] = splitOn "|" msg
+  modify (\s -> s{sHistory = listMoveToEnd $ listAppend (Other user message) (sHistory s)})
 appEvent _ = pure ()
+
+listAppend :: e -> List n e -> List n e
+listAppend e l = listInsert len e l
+ where
+  len = length $ listElements l
 
 data Message
   = Other
@@ -116,12 +120,13 @@ data Message
   deriving (Show, Eq)
 
 data AppState = AppState
-  { sHistory :: List Int Message
-  , sEditor :: Editor Text Int
+  { sHistory :: List Name Message
+  , sEditor :: Editor Text Name
   , sSock :: Socket
+  , sFocus :: FocusRing Name
   }
 
-theApp :: M.App AppState Text Int
+theApp :: M.App AppState Text Name
 theApp =
   M.App
     { M.appDraw = drawUI
