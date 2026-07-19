@@ -14,19 +14,27 @@ data User = User
   }
   deriving (Show, Eq)
 
+withSocket :: AddrInfo -> (Socket -> IO a) -> IO a
+withSocket addr =
+  bracket
+    (socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr))
+    close
+
 main :: IO ()
 main = do
   users <- newIORef []
 
   let hints = defaultHints{addrFlags = [AI_PASSIVE], addrSocketType = Stream}
   addr <- NE.head <$> getAddrInfo (Just hints) (Just "127.0.0.1") (Just "5000")
-  sock <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
-  bind sock (addrAddress addr)
-  listen sock 1024
 
-  putText "Started receiving connections"
+  withSocket addr $ \sock -> do
+    setSocketOption sock ReuseAddr 1
+    bind sock (addrAddress addr)
+    listen sock 1024
 
-  forever $ acceptConns sock users
+    putText "Started receiving connections"
+
+    forever $ acceptConns sock users
 
 acceptConns :: Socket -> IORef [User] -> IO ()
 acceptConns sock usersRef = do
@@ -37,13 +45,15 @@ acceptConns sock usersRef = do
   print "accepted connection"
   modifyIORef usersRef (user :)
 
-  void $ async $ handleUser user usersRef
+  void $ forkIO $ handleUser user usersRef
 
 handleUser :: User -> IORef [User] -> IO ()
 handleUser user@(User sock name) usersRef = do
   msg <- recv sock 1024
   if (BS.null msg)
-    then modifyIORef usersRef (delete user)
+    then do
+      modifyIORef usersRef (delete user)
+      close sock
     else do
       socks <- fmap uSock . filter (/= user) <$> readIORef usersRef
       traverse_ (flip sendAll $ name <> "|" <> msg) socks
