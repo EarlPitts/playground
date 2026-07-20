@@ -1,9 +1,12 @@
 module Server (main) where
 
+import Codec.Serialise
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as LBS
 import Data.IORef
 import Data.List (delete)
 import qualified Data.List.NonEmpty as NE
+import ServerMessage
 import Network.Socket
 import Network.Socket.ByteString
 import Protolude
@@ -42,7 +45,7 @@ acceptConns sock usersRef = do
   userName <- recv conn 1024
   let user = User conn userName
 
-  print "accepted connection"
+  putText "accepted connection"
   modifyIORef usersRef (user :)
 
   void $ forkIO $ handleUser user usersRef
@@ -56,5 +59,6 @@ handleUser user@(User sock name) usersRef = do
       close sock
     else do
       socks <- fmap uSock . filter (/= user) <$> readIORef usersRef
-      traverse_ (flip sendAll $ name <> "|" <> msg) socks
+      let message = ServerMessage name msg
+      traverse_ (flip sendAll $ LBS.toStrict (serialise message)) socks
       handleUser user usersRef

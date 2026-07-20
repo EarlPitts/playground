@@ -9,6 +9,7 @@ import Brick.Widgets.Border
 import Brick.Widgets.Border.Style
 import Brick.Widgets.Edit
 import Brick.Widgets.List as L
+import Codec.Serialise
 import Data.List (head)
 import Data.Text (splitOn)
 import Data.Vector (Vector (..))
@@ -17,6 +18,7 @@ import Graphics.Vty (defaultConfig)
 import qualified Graphics.Vty as V
 import Graphics.Vty.Platform.Unix (mkVty)
 import Protolude hiding (decodeUtf8, head)
+import ServerMessage
 import System.Environment
 
 import Brick.Focus
@@ -46,7 +48,7 @@ main = do
             bs <- recv sock 4096
             if BS.null bs
               then pure ()
-              else writeBChan chan (either (const $ panic "couldn't decode") identity (decodeUtf8 bs)) >> loop
+              else writeBChan chan (either (const $ panic "couldn't decode") identity (fromServer (deserialise (BS.fromStrict bs)))) >> loop
        in loop
 
   let buildVty = mkVty defaultConfig
@@ -83,7 +85,7 @@ textBox =
   borderWithLabel (txt "Reply")
     . renderEditor (\t -> txt $ head t) True
 
-appEvent :: BrickEvent Name Text -> EventM Name AppState ()
+appEvent :: BrickEvent Name Message -> EventM Name AppState ()
 appEvent (VtyEvent e) = case e of
   V.EvKey (V.KEsc) [] -> M.halt
   -- V.EvKey (V.KChar '\t') [] -> do
@@ -102,8 +104,7 @@ appEvent (VtyEvent e) = case e of
     newHistoryState <- nestEventM' sHistory $ handleListEvent e
     modify (\s -> s{sEditor = newEditorState, sHistory = newHistoryState})
 appEvent (AppEvent msg) = do
-  let [user, message] = splitOn "|" msg
-  modify (\s -> s{sHistory = listMoveToEnd $ listAppend (Other user message) (sHistory s)})
+  modify (\s -> s{sHistory = listMoveToEnd $ listAppend msg (sHistory s)})
 appEvent _ = pure ()
 
 listAppend :: e -> List n e -> List n e
@@ -119,6 +120,12 @@ data Message
   | Own {mText :: Text}
   deriving (Show, Eq)
 
+fromServer :: ServerMessage -> Either Text Message
+fromServer (ServerMessage user msg) = do
+  userText <- first show (decodeUtf8 user)
+  msgText <- first show (decodeUtf8 msg)
+  pure (Other userText msgText)
+
 data AppState = AppState
   { sHistory :: List Name Message
   , sEditor :: Editor Text Name
@@ -126,7 +133,7 @@ data AppState = AppState
   , sFocus :: FocusRing Name
   }
 
-theApp :: M.App AppState Text Name
+theApp :: M.App AppState Message Name
 theApp =
   M.App
     { M.appDraw = drawUI
