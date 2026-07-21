@@ -15,7 +15,8 @@ library
   exposed-modules:
     Client
     Server
-    ServerMessage
+    Core
+    Brick.Widgets.List.Extended
 
   build-depends:
     , base

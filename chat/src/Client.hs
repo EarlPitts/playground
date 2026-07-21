@@ -3,57 +3,72 @@ module Client (main) where
 import Brick
 import qualified Brick.AttrMap as A
 import Brick.BChan
+import Brick.Focus
 import qualified Brick.Main as M
-import Brick.Types
 import Brick.Widgets.Border
 import Brick.Widgets.Border.Style
 import Brick.Widgets.Edit
 import Brick.Widgets.List as L
+import Brick.Widgets.List.Extended as L
 import Codec.Serialise
-import Data.List (head)
-import Data.Text (splitOn)
-import Data.Vector (Vector (..))
-import qualified Data.Vector as V
-import Graphics.Vty (defaultConfig)
-import qualified Graphics.Vty as V
-import Graphics.Vty.Platform.Unix (mkVty)
-import Protolude hiding (decodeUtf8, head)
-import ServerMessage
-import System.Environment
-
-import Brick.Focus
-import Control.Concurrent (forkIO)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
+import Data.List (head)
+import qualified Data.List.NonEmpty as NE
+import qualified Graphics.Vty as V
+import Graphics.Vty.Platform.Unix (mkVty)
 import Network.Socket
 import Network.Socket.ByteString (recv, sendAll)
+import Protolude hiding (decodeUtf8, head)
+import System.Environment
+
+import Core
+
+withSocket :: AddrInfo -> (Socket -> IO a) -> IO a
+withSocket addr = bracket (new addr) close
+
+new :: AddrInfo -> IO Socket
+new addr = do
+  sock <- openSocket addr
+  connect sock (addrAddress addr)
+  pure sock
 
 main :: IO ()
 main = do
   chan <- newBChan 10
-
   userName <- getEnv "USER"
 
-  let host = "127.0.0.1"
-      port = "5000"
-  addr <- head <$> getAddrInfo Nothing (Just host) (Just port)
-  sock <- openSocket addr
-  connect sock (addrAddress addr)
+  addr <-
+    NE.head
+      <$> getAddrInfo
+        Nothing
+        (Just (toS $ cHost defaultConfig))
+        (Just (toS $ cPort defaultConfig))
 
-  sendAll sock (C8.pack userName)
+  withSocket addr $ \sock -> do
+    sendAll sock (C8.pack userName)
 
-  _ <-
-    forkIO $
-      let loop = do
-            bs <- recv sock 4096
-            if BS.null bs
-              then pure ()
-              else writeBChan chan (either (const $ panic "couldn't decode") identity (fromServer (deserialise (BS.fromStrict bs)))) >> loop
-       in loop
+    void $ forkIO $ forever $ receiveMessage chan sock
 
-  let buildVty = mkVty defaultConfig
-  initialVty <- buildVty
-  void $ M.customMain initialVty buildVty (Just chan) theApp (AppState emptyHistory emptyEditor sock (focusRing [Editor, History]))
+    let buildVty = mkVty V.defaultConfig
+    initialVty <- buildVty
+    void $
+      M.customMain
+        initialVty
+        buildVty
+        (Just chan)
+        theApp
+        (initState sock)
+
+receiveMessage :: BChan Message -> Socket -> IO ()
+receiveMessage chan sock = do
+  bs <- recv sock 4096
+  if BS.null bs
+    then pure ()
+    else
+      writeBChan
+        chan
+        (either (const $ panic "couldn't decode") identity (fromServer (deserialise (BS.fromStrict bs))))
 
 data Name
   = Editor
@@ -61,7 +76,16 @@ data Name
   deriving (Show, Eq, Ord)
 
 emptyEditor = editor Editor (Just 1) mempty
-emptyHistory = L.list History V.empty 1
+emptyHistory = L.list History mempty 1
+
+initState :: Socket -> AppState
+initState sock =
+  AppState
+    { sHistory = emptyHistory
+    , sEditor = emptyEditor
+    , sSock = sock
+    , sFocus = focusRing [Editor, History]
+    }
 
 drawUI :: AppState -> [Widget Name]
 drawUI AppState{..} = [vBox [history sHistory, textBox sEditor]]
@@ -88,29 +112,20 @@ textBox =
 appEvent :: BrickEvent Name Message -> EventM Name AppState ()
 appEvent (VtyEvent e) = case e of
   V.EvKey (V.KEsc) [] -> M.halt
-  -- V.EvKey (V.KChar '\t') [] -> do
-  --   curr <- gets (\s -> focusGetCurrent $ sFocus s)
-  --   liftIO $ appendFile "sajtFile.txt" (show curr)
-  --   modify (\s -> s{sFocus = focusNext $ sFocus s})
   V.EvKey (V.KEnter) [] -> do
     editorState <- gets sEditor
     sock <- gets sSock
     let msg = head $ getEditContents editorState
     liftIO $ sendAll sock (encodeUtf8 msg)
-    modify (\s -> s{sHistory = listMoveToEnd $ listAppend (Own msg) (sHistory s), sEditor = emptyEditor})
+    modify (\s -> s{sHistory = listMoveToEnd $ L.listAppend (Own msg) (sHistory s), sEditor = emptyEditor})
   _ -> do
     AppState{..} <- get
     newEditorState <- nestEventM' sEditor $ handleEditorEvent (VtyEvent e)
     newHistoryState <- nestEventM' sHistory $ handleListEvent e
     modify (\s -> s{sEditor = newEditorState, sHistory = newHistoryState})
 appEvent (AppEvent msg) = do
-  modify (\s -> s{sHistory = listMoveToEnd $ listAppend msg (sHistory s)})
+  modify (\s -> s{sHistory = listMoveToEnd $ L.listAppend msg (sHistory s)})
 appEvent _ = pure ()
-
-listAppend :: e -> List n e -> List n e
-listAppend e l = listInsert len e l
- where
-  len = length $ listElements l
 
 data Message
   = Other
