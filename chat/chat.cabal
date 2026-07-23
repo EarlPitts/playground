@@ -13,31 +13,32 @@ common warnings
 library
   import:             warnings
   exposed-modules:
-    Client
-    Server
-    Core
     Brick.Widgets.List.Extended
+    Client
+    Core
+    Server
 
   build-depends:
     , base
     , brick
+    , bytestring
     , network
     , protolude
+    , serialise
+    , text
     , vector
     , vty
-    , bytestring
-    , text
     , vty-unix
-    , serialise
+    , optparse-applicative
 
   hs-source-dirs:     src
   default-language:   Haskell2010
   default-extensions:
+    BlockArguments
     LambdaCase
     NoImplicitPrelude
     OverloadedStrings
     RecordWildCards
-    BlockArguments
 
 executable server
   import:           warnings

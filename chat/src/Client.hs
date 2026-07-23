@@ -19,10 +19,31 @@ import qualified Graphics.Vty as V
 import Graphics.Vty.Platform.Unix (mkVty)
 import Network.Socket
 import Network.Socket.ByteString (recv, sendAll)
-import Protolude hiding (decodeUtf8, head)
+import Options.Applicative hiding (str)
+import Protolude hiding (decodeUtf8, head, (<|>))
 import System.Environment
 
 import Core
+
+data TUIConfig = TUIConfig
+  { cUsername :: Maybe Text
+  }
+  deriving (Show, Eq)
+
+pConfig :: ParserInfo TUIConfig
+pConfig = info (configParser <**> helper) (fullDesc <> progDesc "Chat client")
+
+configParser :: Parser TUIConfig
+configParser =
+  TUIConfig
+    <$> optional
+      ( strOption
+          ( long "username"
+              <> short 'u'
+              <> metavar "NAME"
+              <> help "Username"
+          )
+      )
 
 withSocket :: AddrInfo -> (Socket -> IO a) -> IO a
 withSocket addr = bracket (new addr) close
@@ -35,8 +56,9 @@ new addr = do
 
 main :: IO ()
 main = do
+  config <- execParser pConfig
   chan <- newBChan 10
-  userName <- getEnv "USER"
+  userName <- maybe (getEnv "USER") (pure . toS) (cUsername config)
 
   addr <-
     NE.head
