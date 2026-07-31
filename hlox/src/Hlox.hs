@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Hlox where
+module Hlox (main) where
 
 import Control.Monad
 import Data.Text (Text)
@@ -10,7 +10,6 @@ import System.Environment
 import System.Exit
 import System.IO (hFlush, stdout)
 import Text.Parsec
-import Text.Parsec.Combinator
 import Text.Parsec.Text
 
 main :: IO ()
@@ -43,49 +42,86 @@ run script = case parse p "" script of
   Left err -> print err
 
 data Statement
-  = Skip
-  | Assignment String Expression
+  = Assignment String Expr
+  | ExprStatement Expr
   deriving (Show, Eq)
 
-data Expression
-  = BoolLiteral Bool
-  | StringLiteral String
+data Expr
+  = BoolLit Bool
+  | StringLit String
+  | NumLit Double
+  | Add Expr Expr
+  | Sub Expr Expr
+  | Mult Expr Expr
+  | Div Expr Expr
   deriving (Show, Eq)
 
 type Script = [Statement]
 
 p :: Parser Script
-p = sepEndBy1 pStatement (char ';')
+p = sepEndBy1 pStatement (char ';') <* eof
 
 pStatement :: Parser Statement
-pStatement = pAssignment <|> pure Skip
+pStatement = pAssignment <|> (ExprStatement <$> pExpression)
+
+pIdentifier :: Parser String
+pIdentifier =
+  liftA2
+    (:)
+    (letter <|> char '_')
+    (many $ alphaNum <|> char '_')
 
 pAssignment :: Parser Statement
 pAssignment = do
   string "var"
   many1 space
-  name <- many1 letter
+  name <- pIdentifier
   many1 space
   char '='
   many1 space
   expr <- pExpression
   pure $ Assignment name expr
 
-pExpression :: Parser Expression
+pExpression :: Parser Expr
 pExpression =
-  pBoolLiteral <|> pStringLiteral
+  choice
+    [ pBoolLit
+    , pStringLit
+    , try pNumLit
+    , pBinaryOp
+    ]
 
-pBoolLiteral :: Parser Expression
-pBoolLiteral =
-  BoolLiteral
+pBoolLit :: Parser Expr
+pBoolLit =
+  BoolLit
     <$> ( ((string "true") *> pure True)
             <|> ((string "false") *> pure False)
         )
 
-pStringLiteral :: Parser Expression
-pStringLiteral =
-  StringLiteral
+pStringLit :: Parser Expr
+pStringLit =
+  StringLit
     <$> between
       (char '"')
       (char '"')
       (many (noneOf "\""))
+
+pNumLit :: Parser Expr
+pNumLit =
+  (NumLit . read) <$> do
+    whole <- many1 digit
+    frac <- option "" $ (:) <$> char '.' *> many1 digit
+    pure $ whole <> frac
+
+pBinaryOp :: Parser Expr
+pBinaryOp = do
+  l <- pExpression
+  many space
+  op <- oneOf ['+', '-', '/', '*']
+  many space
+  r <- pExpression
+  pure $ case op of
+    '+' -> Add l r
+    '-' -> Sub l r
+    '/' -> Div l r
+    '*' -> Mult l r
