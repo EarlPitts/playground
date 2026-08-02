@@ -11,6 +11,30 @@ import System.Exit
 import System.IO (hFlush, stdout)
 import Text.Parsec
 import Text.Parsec.Text
+import Prelude hiding (GT, LT)
+
+instance Show Statement where
+  show (ExprStatement expr) = show expr
+
+instance Show Expr where
+  show (BoolLit b) = show b
+  show (StringLit s) = "\"" <> s <> "\""
+  show (NumLit n) = show n
+  show Nil = "nil"
+  show (Unary op expr) = show op <> "(" <> show expr <> ")"
+  show (Binary op expr expr') = "(" <> show expr <> " " <> show op <> " " <> show expr' <> ")"
+
+instance Show Op where
+  show Eq = "=="
+  show Neq = "!="
+  show LT = "<"
+  show LTE = "<="
+  show GT = ">"
+  show GTE = ">="
+  show Add = "+"
+  show Sub = "-"
+  show Mult = "*"
+  show Div = "/"
 
 main :: IO ()
 main = do
@@ -44,17 +68,29 @@ run script = case parse p "" script of
 data Statement
   = Assignment String Expr
   | ExprStatement Expr
-  deriving (Show, Eq)
+  deriving (Eq)
 
 data Expr
   = BoolLit Bool
   | StringLit String
   | NumLit Double
-  | Add Expr Expr
-  | Sub Expr Expr
-  | Mult Expr Expr
-  | Div Expr Expr
-  deriving (Show, Eq)
+  | Nil
+  | Unary Op Expr
+  | Binary Op Expr Expr
+  deriving (Eq)
+
+data Op
+  = Eq
+  | Neq
+  | LT
+  | LTE
+  | GT
+  | GTE
+  | Add
+  | Sub
+  | Mult
+  | Div
+  deriving (Eq)
 
 type Script = [Statement]
 
@@ -83,13 +119,20 @@ pAssignment = do
   pure $ Assignment name expr
 
 pExpression :: Parser Expr
-pExpression =
+pExpression = chainl1 pTerm pBinOp
+
+pTerm :: Parser Expr
+pTerm =
   choice
-    [ pBoolLit
+    [ pNil
+    , pBoolLit
     , pStringLit
-    , try pNumLit
-    , pBinaryOp
+    , pNumLit
+    , between (char '(') (char ')') pExpression
     ]
+
+pNil :: Parser Expr
+pNil = string "nil" *> pure Nil
 
 pBoolLit :: Parser Expr
 pBoolLit =
@@ -110,18 +153,23 @@ pNumLit :: Parser Expr
 pNumLit =
   (NumLit . read) <$> do
     whole <- many1 digit
-    frac <- option "" $ (:) <$> char '.' *> many1 digit
+    frac <- option "" $ (:) <$> char '.' <*> many1 digit
     pure $ whole <> frac
 
-pBinaryOp :: Parser Expr
-pBinaryOp = do
-  l <- pExpression
-  many space
-  op <- oneOf ['+', '-', '/', '*']
-  many space
-  r <- pExpression
-  pure $ case op of
-    '+' -> Add l r
-    '-' -> Sub l r
-    '/' -> Div l r
-    '*' -> Mult l r
+pBinOp :: Parser (Expr -> Expr -> Expr)
+pBinOp = Binary <$> (many space *> pOp <* many space)
+
+pOp :: Parser Op
+pOp =
+  choice
+    [ string "==" *> pure Eq
+    , string "!=" *> pure Neq
+    , try (string "<=") *> pure LTE
+    , string "<" *> pure LT
+    , try (string ">=") *> pure GTE
+    , string ">" *> pure GT
+    , string "+" *> pure Add
+    , string "-" *> pure Sub
+    , string "*" *> pure Mult
+    , string "/" *> pure Div
+    ]
