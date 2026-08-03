@@ -90,6 +90,8 @@ data Op
   | Sub
   | Mult
   | Div
+  | Neg
+  | Minus
   deriving (Eq)
 
 type Script = [Statement]
@@ -119,10 +121,13 @@ pAssignment = do
   pure $ Assignment name expr
 
 pExpression :: Parser Expr
-pExpression = chainl1 pTerm pBinOp
+pExpression = pEquality
 
-pTerm :: Parser Expr
-pTerm =
+pEquality :: Parser Expr
+pEquality = undefined
+
+pPrimary :: Parser Expr
+pPrimary =
   choice
     [ pNil
     , pBoolLit
@@ -172,4 +177,6 @@ pOp =
     , string "-" *> pure Sub
     , string "*" *> pure Mult
     , string "/" *> pure Div
+    , string "!" *> pure Neg -- TODO
+    , string "-" *> pure Minus -- TODO
     ]
