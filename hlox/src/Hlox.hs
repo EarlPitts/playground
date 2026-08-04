@@ -35,6 +35,8 @@ instance Show Op where
   show Sub = "-"
   show Mult = "*"
   show Div = "/"
+  show Neg = "!"
+  show Minus = "-"
 
 main :: IO ()
 main = do
@@ -121,10 +123,19 @@ pAssignment = do
   pure $ Assignment name expr
 
 pExpression :: Parser Expr
-pExpression = pEquality
+pExpression = pUnary
 
 pEquality :: Parser Expr
 pEquality = undefined
+
+pFactor :: Parser Expr
+pFactor = undefined
+
+pUnary :: Parser Expr
+pUnary =
+  (char '!' *> pure (Unary Neg) <|> char '-' *> pure (Unary Minus))
+    <*> pUnary
+      <|> pPrimary
 
 pPrimary :: Parser Expr
 pPrimary =
