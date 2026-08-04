@@ -123,19 +123,79 @@ pAssignment = do
   pure $ Assignment name expr
 
 pExpression :: Parser Expr
-pExpression = pUnary
+pExpression = pEquality
 
 pEquality :: Parser Expr
-pEquality = undefined
+pEquality = do
+  left <- pComparison
+  rest <- many $ try $ do
+    many space
+    op <- pEqualityOp
+    many space
+    term <- pComparison
+    pure (op, term)
+  pure (foldl' (\acc (op, r) -> Binary op acc r) left rest)
+
+pEqualityOp :: Parser Op
+pEqualityOp =
+  choice
+    [ string "==" *> pure Eq
+    , string "!=" *> pure Neq
+    ]
+
+pComparison :: Parser Expr
+pComparison = do
+  left <- pTerm
+  rest <- many $ try $ do
+    many space
+    op <- pComparisonOp
+    many space
+    term <- pTerm
+    pure (op, term)
+  pure (foldl' (\acc (op, r) -> Binary op acc r) left rest)
+
+pComparisonOp :: Parser Op
+pComparisonOp =
+  choice
+    [ try (string "<=") *> pure LTE
+    , string "<" *> pure LT
+    , try (string ">=") *> pure GTE
+    , string ">" *> pure GT
+    ]
+
+pTerm :: Parser Expr
+pTerm = do
+  left <- pFactor
+  rest <- many $ try $ do
+    many space
+    op <- pTermOp
+    many space
+    factor <- pFactor
+    pure (op, factor)
+  pure (foldl' (\acc (op, r) -> Binary op acc r) left rest)
+
+pTermOp :: Parser Op
+pTermOp = char '-' *> pure Sub <|> char '+' *> pure Add
 
 pFactor :: Parser Expr
-pFactor = undefined
+pFactor = do
+  left <- pUnary
+  rest <- many $ try $ do
+    many space
+    op <- pFactorOp
+    many space
+    unary <- pUnary
+    pure (op, unary)
+  pure (foldl' (\acc (op, r) -> Binary op acc r) left rest)
+
+pFactorOp :: Parser Op
+pFactorOp = char '*' *> pure Mult <|> char '/' *> pure Div
 
 pUnary :: Parser Expr
-pUnary =
-  (char '!' *> pure (Unary Neg) <|> char '-' *> pure (Unary Minus))
-    <*> pUnary
-      <|> pPrimary
+pUnary = Unary <$> pUnaryOp <*> pUnary <|> pPrimary
+
+pUnaryOp :: Parser Op
+pUnaryOp = char '!' *> pure Neg <|> char '-' *> pure Minus
 
 pPrimary :: Parser Expr
 pPrimary =
@@ -171,23 +231,3 @@ pNumLit =
     whole <- many1 digit
     frac <- option "" $ (:) <$> char '.' <*> many1 digit
     pure $ whole <> frac
-
-pBinOp :: Parser (Expr -> Expr -> Expr)
-pBinOp = Binary <$> (many space *> pOp <* many space)
-
-pOp :: Parser Op
-pOp =
-  choice
-    [ string "==" *> pure Eq
-    , string "!=" *> pure Neq
-    , try (string "<=") *> pure LTE
-    , string "<" *> pure LT
-    , try (string ">=") *> pure GTE
-    , string ">" *> pure GT
-    , string "+" *> pure Add
-    , string "-" *> pure Sub
-    , string "*" *> pure Mult
-    , string "/" *> pure Div
-    , string "!" *> pure Neg -- TODO
-    , string "-" *> pure Minus -- TODO
-    ]
