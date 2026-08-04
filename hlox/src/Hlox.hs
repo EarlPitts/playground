@@ -126,15 +126,7 @@ pExpression :: Parser Expr
 pExpression = pEquality
 
 pEquality :: Parser Expr
-pEquality = do
-  left <- pComparison
-  rest <- many $ try $ do
-    many space
-    op <- pEqualityOp
-    many space
-    term <- pComparison
-    pure (op, term)
-  pure (foldl' (\acc (op, r) -> Binary op acc r) left rest)
+pEquality = pBinary pComparison pEqualityOp
 
 pEqualityOp :: Parser Op
 pEqualityOp =
@@ -144,15 +136,7 @@ pEqualityOp =
     ]
 
 pComparison :: Parser Expr
-pComparison = do
-  left <- pTerm
-  rest <- many $ try $ do
-    many space
-    op <- pComparisonOp
-    many space
-    term <- pTerm
-    pure (op, term)
-  pure (foldl' (\acc (op, r) -> Binary op acc r) left rest)
+pComparison = pBinary pTerm pComparisonOp
 
 pComparisonOp :: Parser Op
 pComparisonOp =
@@ -164,29 +148,13 @@ pComparisonOp =
     ]
 
 pTerm :: Parser Expr
-pTerm = do
-  left <- pFactor
-  rest <- many $ try $ do
-    many space
-    op <- pTermOp
-    many space
-    factor <- pFactor
-    pure (op, factor)
-  pure (foldl' (\acc (op, r) -> Binary op acc r) left rest)
+pTerm = pBinary pFactor pTermOp
 
 pTermOp :: Parser Op
 pTermOp = char '-' *> pure Sub <|> char '+' *> pure Add
 
 pFactor :: Parser Expr
-pFactor = do
-  left <- pUnary
-  rest <- many $ try $ do
-    many space
-    op <- pFactorOp
-    many space
-    unary <- pUnary
-    pure (op, unary)
-  pure (foldl' (\acc (op, r) -> Binary op acc r) left rest)
+pFactor = pBinary pUnary pFactorOp
 
 pFactorOp :: Parser Op
 pFactorOp = char '*' *> pure Mult <|> char '/' *> pure Div
@@ -231,3 +199,14 @@ pNumLit =
     whole <- many1 digit
     frac <- option "" $ (:) <$> char '.' <*> many1 digit
     pure $ whole <> frac
+
+pBinary :: Parser Expr -> Parser Op -> Parser Expr
+pBinary parser pOp = do
+  left <- parser
+  rest <- many $ try $ do
+    many space
+    op <- pOp
+    many space
+    term <- parser
+    pure (op, term)
+  pure (foldl' (\acc (op, r) -> Binary op acc r) left rest)
