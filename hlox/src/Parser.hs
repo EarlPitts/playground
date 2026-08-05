@@ -140,8 +140,8 @@ pPrimary =
     , pStringLit
     , pNumLit
     , between
-        (many $ space *> char '(' <* many space)
-        (many $ space *> char ')' <* many space)
+        (char '(' <* many space)
+        (many space *> char ')')
         pExpression
     ]
 

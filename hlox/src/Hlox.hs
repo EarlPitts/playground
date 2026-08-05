@@ -12,6 +12,7 @@ import System.Environment
 import System.Exit
 import System.IO (hFlush, stdout)
 import Text.Parsec hiding (State)
+import Prelude hiding (GT, LT)
 
 import Parser
 
@@ -67,3 +68,34 @@ eval (Unary Neg e) = case eval e of
 eval (Unary Minus e) = case eval e of
   Right (NumValue n) -> Right (NumValue (-n))
   _ -> Left TypeError
+eval (Binary Eq e e') = case (eval e, eval e') of
+  (Right v, Right v') -> Right (BoolValue (v == v'))
+  _ -> Left TypeError
+eval (Binary Neq e e') = case (eval e, eval e') of
+  (Right v, Right v') -> Right (BoolValue (v /= v'))
+  _ -> Left TypeError
+eval (Binary LT e e') = case (eval e, eval e') of
+  (Right (NumValue v), Right (NumValue v')) -> Right (BoolValue (v < v'))
+  _ -> Left TypeError
+eval (Binary LTE e e') = case (eval e, eval e') of
+  (Right (NumValue v), Right (NumValue v')) -> Right (BoolValue (v <= v'))
+  _ -> Left TypeError
+eval (Binary GT e e') = case (eval e, eval e') of
+  (Right (NumValue v), Right (NumValue v')) -> Right (BoolValue (v > v'))
+  _ -> Left TypeError
+eval (Binary GTE e e') = case (eval e, eval e') of
+  (Right (NumValue v), Right (NumValue v')) -> Right (BoolValue (v >= v'))
+  _ -> Left TypeError
+eval (Binary Add e e') = case (eval e, eval e') of
+  (Right (NumValue v), Right (NumValue v')) -> Right (NumValue (v + v'))
+  _ -> Left TypeError
+eval (Binary Sub e e') = case (eval e, eval e') of
+  (Right (NumValue v), Right (NumValue v')) -> Right (NumValue (v - v'))
+  _ -> Left TypeError
+eval (Binary Mult e e') = case (eval e, eval e') of
+  (Right (NumValue v), Right (NumValue v')) -> Right (NumValue (v * v'))
+  _ -> Left TypeError
+eval (Binary Div e e') = case (eval e, eval e') of
+  (Right (NumValue v), Right (NumValue v')) -> Right (NumValue (v / v'))
+  _ -> Left TypeError
+eval _ = Left TypeError
