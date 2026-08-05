@@ -1,6 +1,8 @@
 module Parser (
   p,
   Expr (..),
+  Op (..),
+  Statement (..),
 ) where
 
 import Text.Parsec
