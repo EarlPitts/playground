@@ -8,6 +8,7 @@ import Data.Map
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
+import System.Console.Haskeline
 import System.Environment
 import System.Exit
 import System.IO (hFlush, stdout)
@@ -67,6 +68,9 @@ eval (NumLit n) = Right (NumValue n)
 eval Nil = Right NilValue
 eval (Unary Neg e) = case eval e of
   Right (BoolValue b) -> Right (BoolValue (not b))
+  Right NilValue -> Right (BoolValue True)
+  Right (NumValue 0) -> Right (BoolValue True)
+  Right _ -> Right (BoolValue False)
   _ -> Left TypeError
 eval (Unary Minus e) = case eval e of
   Right (NumValue n) -> Right (NumValue (-n))
@@ -91,6 +95,7 @@ eval (Binary GTE e e') = case (eval e, eval e') of
   _ -> Left TypeError
 eval (Binary Add e e') = case (eval e, eval e') of
   (Right (NumValue v), Right (NumValue v')) -> Right (NumValue (v + v'))
+  (Right (StringValue v), Right (StringValue v')) -> Right (StringValue (v <> v'))
   _ -> Left TypeError
 eval (Binary Sub e e') = case (eval e, eval e') of
   (Right (NumValue v), Right (NumValue v')) -> Right (NumValue (v - v'))
