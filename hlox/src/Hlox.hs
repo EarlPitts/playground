@@ -27,13 +27,16 @@ main = do
       exitWith (ExitFailure 64)
 
 runRepl :: IO ()
-runRepl = do
-  TIO.putStr "> "
-  hFlush stdout
-  line <- TIO.getLine
-  unless (T.null line) $ do
-    run line
-    runRepl
+runRepl = runInputT defaultSettings loop
+ where
+  loop = do
+    minput <- getInputLine "> "
+    case minput of
+      Nothing -> return ()
+      Just "exit" -> return ()
+      Just line -> do
+        liftIO $ run (T.pack line)
+        loop
 
 runScript :: FilePath -> IO ()
 runScript path = do
