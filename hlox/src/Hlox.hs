@@ -43,6 +43,7 @@ runScript :: FilePath -> IO ()
 runScript path = do
   script <- TIO.readFile path
   run script
+  -- TODO set exit code in case of error
 
 run :: Text -> IO ()
 run script = case parse p "" script of
@@ -56,7 +57,7 @@ data Value
   | BoolValue Bool
   deriving (Eq, Show)
 
-data TypeError = TypeError deriving (Show)
+data TypeError = TypeError Expr deriving (Show)
 
 exec :: [Statement] -> State (Map String Value) (Either TypeError Value)
 exec [ExprStatement e] = pure $ eval e
@@ -71,39 +72,58 @@ eval (Unary Neg e) = case eval e of
   Right NilValue -> Right (BoolValue True)
   Right (NumValue 0) -> Right (BoolValue True)
   Right _ -> Right (BoolValue False)
-  _ -> Left TypeError
+  Left err -> Left err
 eval (Unary Minus e) = case eval e of
   Right (NumValue n) -> Right (NumValue (-n))
-  _ -> Left TypeError
+  Left err -> Left err
+  _ -> Left (TypeError (Unary Minus e))
 eval (Binary Eq e e') = case (eval e, eval e') of
   (Right v, Right v') -> Right (BoolValue (v == v'))
-  _ -> Left TypeError
+  (Left err, _) -> Left err
+  (_, Left err) -> Left err
 eval (Binary Neq e e') = case (eval e, eval e') of
   (Right v, Right v') -> Right (BoolValue (v /= v'))
-  _ -> Left TypeError
+  (Left err, _) -> Left err
+  (_, Left err) -> Left err
 eval (Binary LT e e') = case (eval e, eval e') of
   (Right (NumValue v), Right (NumValue v')) -> Right (BoolValue (v < v'))
-  _ -> Left TypeError
+  (Left err, _) -> Left err
+  (_, Left err) -> Left err
+  _ -> Left (TypeError (Binary LT e e'))
 eval (Binary LTE e e') = case (eval e, eval e') of
   (Right (NumValue v), Right (NumValue v')) -> Right (BoolValue (v <= v'))
-  _ -> Left TypeError
+  (Left err, _) -> Left err
+  (_, Left err) -> Left err
+  _ -> Left (TypeError (Binary LTE e e'))
 eval (Binary GT e e') = case (eval e, eval e') of
   (Right (NumValue v), Right (NumValue v')) -> Right (BoolValue (v > v'))
-  _ -> Left TypeError
+  (Left err, _) -> Left err
+  (_, Left err) -> Left err
+  _ -> Left (TypeError (Binary GT e e'))
 eval (Binary GTE e e') = case (eval e, eval e') of
   (Right (NumValue v), Right (NumValue v')) -> Right (BoolValue (v >= v'))
-  _ -> Left TypeError
+  (Left err, _) -> Left err
+  (_, Left err) -> Left err
+  _ -> Left (TypeError (Binary GTE e e'))
 eval (Binary Add e e') = case (eval e, eval e') of
   (Right (NumValue v), Right (NumValue v')) -> Right (NumValue (v + v'))
   (Right (StringValue v), Right (StringValue v')) -> Right (StringValue (v <> v'))
-  _ -> Left TypeError
+  (Left err, _) -> Left err
+  (_, Left err) -> Left err
+  _ -> Left (TypeError (Binary Add e e'))
 eval (Binary Sub e e') = case (eval e, eval e') of
   (Right (NumValue v), Right (NumValue v')) -> Right (NumValue (v - v'))
-  _ -> Left TypeError
+  (Left err, _) -> Left err
+  (_, Left err) -> Left err
+  _ -> Left (TypeError (Binary Sub e e'))
 eval (Binary Mult e e') = case (eval e, eval e') of
   (Right (NumValue v), Right (NumValue v')) -> Right (NumValue (v * v'))
-  _ -> Left TypeError
+  (Left err, _) -> Left err
+  (_, Left err) -> Left err
+  _ -> Left (TypeError (Binary Mult e e'))
 eval (Binary Div e e') = case (eval e, eval e') of
   (Right (NumValue v), Right (NumValue v')) -> Right (NumValue (v / v'))
-  _ -> Left TypeError
-eval _ = Left TypeError
+  (Left err, _) -> Left err
+  (_, Left err) -> Left err
+  _ -> Left (TypeError (Binary Div e e'))
+eval e = Left (TypeError e)

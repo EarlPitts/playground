@@ -69,7 +69,10 @@ p :: Parser Script
 p = sepEndBy1 pStatement (char ';') <* eof
 
 pStatement :: Parser Statement
-pStatement = pAssignment <|> (ExprStatement <$> pExpression)
+pStatement =
+  many space
+    *> pAssignment <|> (ExprStatement <$> pExpression)
+    <* many space
 
 pIdentifier :: Parser String
 pIdentifier =
