@@ -37,6 +37,7 @@ instance Show Op where
 data Statement
   = Assignment String Expr
   | ExprStatement Expr
+  | PrintStmt Expr
   deriving (Eq)
 
 data Expr
@@ -66,13 +67,10 @@ data Op
 type Script = [Statement]
 
 p :: Parser Script
-p = sepEndBy1 pStatement (char ';') <* eof
+p = many pStatement <* eof
 
 pStatement :: Parser Statement
-pStatement =
-  many space
-    *> pAssignment <|> (ExprStatement <$> pExpression)
-    <* many space
+pStatement = pExprStmt <|> pPrintStmt
 
 pIdentifier :: Parser String
 pIdentifier =
@@ -89,11 +87,23 @@ pAssignment = do
   many1 space
   char '='
   many1 space
-  expr <- pExpression
+  expr <- pExpr
   pure $ Assignment name expr
 
-pExpression :: Parser Expr
-pExpression = pEquality
+pPrintStmt :: Parser Statement
+pPrintStmt = do
+  string "print"
+  many1 space
+  expr <- pExpr
+  many space
+  char ';'
+  pure (PrintStmt expr)
+
+pExprStmt :: Parser Statement
+pExprStmt = ExprStatement <$> pExpr <* char ';'
+
+pExpr :: Parser Expr
+pExpr = pEquality
 
 pEquality :: Parser Expr
 pEquality = pBinary pComparison pEqualityOp
@@ -145,7 +155,7 @@ pPrimary =
     , between
         (char '(' <* many space)
         (many space *> char ')')
-        pExpression
+        pExpr
     ]
 
 pNil :: Parser Expr
