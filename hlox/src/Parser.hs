@@ -70,7 +70,7 @@ p :: Parser Script
 p = many pStatement <* eof
 
 pStatement :: Parser Statement
-pStatement = pExprStmt <|> pPrintStmt
+pStatement = many space *> (pExprStmt <|> pPrintStmt) <* many space
 
 pIdentifier :: Parser String
 pIdentifier =

@@ -34,16 +34,23 @@ runRepl = runInputT defaultSettings loop
   loop = do
     minput <- getInputLine "> "
     case minput of
-      Nothing -> return ()
-      Just "exit" -> return ()
+      Nothing -> pure ()
+      Just "exit" -> pure ()
       Just line -> do
-        liftIO $ run (T.pack line)
+        case parse p "" (T.pack line) of
+          Right ast -> do
+            (result, _env) <- liftIO $ runStateT (runExceptT (exec ast)) mempty
+            case result of
+              Left err -> liftIO $ print err
+              Right v -> liftIO $ print v
+          Left err -> liftIO $ print err
         loop
 
 runScript :: FilePath -> IO ()
 runScript path = do
   script <- TIO.readFile path
   run script
+
 -- TODO set exit code in case of error
 
 run :: Text -> IO ()
@@ -52,7 +59,7 @@ run script = case parse p "" script of
     (result, _env) <- runStateT (runExceptT (exec ast)) mempty
     case result of
       Left err -> print err
-      Right () -> pure ()
+      Right _ -> pure ()
   Left err -> print err
 
 data Value
@@ -60,7 +67,13 @@ data Value
   | NumValue Double
   | StringValue String
   | BoolValue Bool
-  deriving (Eq, Show)
+  deriving (Eq)
+
+instance Show Value where
+  show NilValue = "nil"
+  show (NumValue d) = show d
+  show (StringValue str) = str
+  show (BoolValue b) = if b then "true" else "false"
 
 data RuntimeError = TypeError Expr deriving (Show, Eq)
 
@@ -68,8 +81,9 @@ type Env = Map String Value
 type Interpreter a = ExceptT RuntimeError (StateT Env IO) a
 
 exec :: [Statement] -> Interpreter ()
-exec [ExprStatement e] = eval e >> pure ()
-exec [PrintStmt e] = eval e >>= liftIO . print
+exec [] = pure ()
+exec ((ExprStatement e) : ss) = eval e >> exec ss
+exec ((PrintStmt e) : ss) = eval e >>= liftIO . print >> exec ss
 
 eval :: Expr -> Interpreter Value
 eval (BoolLit b) = pure (BoolValue b)
@@ -145,4 +159,4 @@ eval (Binary Div e e') = do
   case (v, v') of
     (NumValue n, NumValue n') -> pure (NumValue (n / n'))
     _ -> throwError $ TypeError (Binary Div e e')
-eval e = throwError $ TypeError e
+-- eval e = throwError $ TypeError e
