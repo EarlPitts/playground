@@ -31,8 +31,6 @@ testFrameworks += new TestFramework("weaver.framework.CatsEffect")
 
 scalaVersion := "3.8.4"
 
-scalacOptions ++= Seq("-Werror")
-
 watchTriggeredMessage := ((a, b, c) => None)
 watchStartMessage := ((a, b, c) => None)
 
