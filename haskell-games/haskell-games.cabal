@@ -9,17 +9,18 @@ common warnings
 library
   import:             warnings
   exposed-modules:
-    SpaceInvader.UI
-    SpaceInvader.Core
-    Sudoku.Main
-    Sudoku.Sudoku
-    Snake.Main
-    Snake.Snake
-    Minesweeper.Game
-    Minesweeper.Grid
     GuessTheNumber
     Hangman
+    Minesweeper.Game
+    Minesweeper.Grid
+    Pacman.Pacman
     RockPaperScissors
+    Snake.Main
+    Snake.Snake
+    SpaceInvader.Core
+    SpaceInvader.UI
+    Sudoku.Main
+    Sudoku.Sudoku
     TicTacToe
     TicTacTui
 
