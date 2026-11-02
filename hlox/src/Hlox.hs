@@ -1,10 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Hlox (main) where
 
+import Control.Exception hiding (TypeError)
 import Control.Monad
-import Control.Monad.Except
-import Control.Monad.State
+import Control.Monad.Reader
+import Data.IORef
 import Data.Map
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -12,8 +14,7 @@ import qualified Data.Text.IO as TIO
 import System.Console.Haskeline
 import System.Environment
 import System.Exit
-import System.IO (hFlush, stdout)
-import Text.Parsec hiding (State)
+import Text.Parsec hiding (State, try)
 import Prelude hiding (GT, LT)
 
 import Parser
@@ -29,9 +30,11 @@ main = do
       exitWith (ExitFailure 64)
 
 runRepl :: IO ()
-runRepl = runInputT defaultSettings loop
+runRepl = do
+  envRef <- newIORef mempty
+  runInputT defaultSettings (loop envRef)
  where
-  loop = do
+  loop env = do
     minput <- getInputLine "> "
     case minput of
       Nothing -> pure ()
@@ -39,12 +42,12 @@ runRepl = runInputT defaultSettings loop
       Just line -> do
         case parse p "" (T.pack line) of
           Right ast -> do
-            (result, _env) <- liftIO $ runStateT (runExceptT (exec ast)) mempty
+            result <- liftIO $ try @RuntimeError $ runReaderT (exec ast) env
             case result of
               Left err -> liftIO $ print err
               Right v -> liftIO $ print v
           Left err -> liftIO $ print err
-        loop
+        loop env
 
 runScript :: FilePath -> IO ()
 runScript path = do
@@ -56,7 +59,8 @@ runScript path = do
 run :: Text -> IO ()
 run script = case parse p "" script of
   Right ast -> do
-    (result, _env) <- runStateT (runExceptT (exec ast)) mempty
+    env <- liftIO $ newIORef mempty
+    result <- liftIO $ try @RuntimeError $ runReaderT (exec ast) env
     case result of
       Left err -> print err
       Right _ -> pure ()
@@ -75,21 +79,37 @@ instance Show Value where
   show (StringValue str) = str
   show (BoolValue b) = if b then "true" else "false"
 
-data RuntimeError = TypeError Expr deriving (Show, Eq)
+data RuntimeError
+  = TypeError Expr
+  | Undefined String
+  deriving (Show, Eq)
+instance Exception RuntimeError
 
-type Env = Map String Value
-type Interpreter a = ExceptT RuntimeError (StateT Env IO) a
+type Env = IORef (Map String Value)
+
+-- type Interpreter a = ExceptT RuntimeError (StateT Env IO) a
+type Interpreter a = ReaderT Env IO a
 
 exec :: [Statement] -> Interpreter ()
 exec [] = pure ()
-exec ((ExprStatement e) : ss) = eval e >> exec ss
+exec ((Assignment i e) : ss) = do
+  v <- eval e
+  envRef <- ask
+  liftIO $ modifyIORef' envRef (insert i v)
+  exec ss
 exec ((PrintStmt e) : ss) = eval e >>= liftIO . print >> exec ss
+exec ((ExprStatement e) : ss) = eval e >> exec ss
 
 eval :: Expr -> Interpreter Value
 eval (BoolLit b) = pure (BoolValue b)
 eval (StringLit s) = pure (StringValue s)
 eval (NumLit n) = pure (NumValue n)
 eval Nil = pure NilValue
+eval (Var n) = do
+  envRef <- ask >>= liftIO . readIORef
+  case envRef !? n of
+    Just v -> pure v
+    Nothing -> liftIO $ throwIO $ Undefined n
 eval (Unary Neg e) = do
   v <- eval e
   pure $ case v of
@@ -101,7 +121,7 @@ eval (Unary Minus e) = do
   v <- eval e
   case v of
     NumValue n -> pure $ NumValue (-n)
-    _ -> throwError $ TypeError (Unary Minus e)
+    _ -> liftIO $ throwIO $ TypeError (Unary Minus e)
 eval (Binary Eq e e') = do
   v <- eval e
   v' <- eval e'
@@ -115,48 +135,49 @@ eval (Binary LT e e') = do
   v' <- eval e'
   case (v, v') of
     (NumValue n, NumValue n') -> pure (BoolValue (n < n'))
-    _ -> throwError $ TypeError (Binary LT e e')
+    _ -> liftIO $ throwIO $ TypeError (Binary LT e e')
 eval (Binary LTE e e') = do
   v <- eval e
   v' <- eval e'
   case (v, v') of
     (NumValue n, NumValue n') -> pure (BoolValue (n <= n'))
-    _ -> throwError $ TypeError (Binary LTE e e')
+    _ -> liftIO $ throwIO $ TypeError (Binary LTE e e')
 eval (Binary GT e e') = do
   v <- eval e
   v' <- eval e'
   case (v, v') of
     (NumValue n, NumValue n') -> pure (BoolValue (n > n'))
-    _ -> throwError $ TypeError (Binary GT e e')
+    _ -> liftIO $ throwIO $ TypeError (Binary GT e e')
 eval (Binary GTE e e') = do
   v <- eval e
   v' <- eval e'
   case (v, v') of
     (NumValue n, NumValue n') -> pure (BoolValue (n >= n'))
-    _ -> throwError $ TypeError (Binary GTE e e')
+    _ -> liftIO $ throwIO $ TypeError (Binary GTE e e')
 eval (Binary Add e e') = do
   v <- eval e
   v' <- eval e'
   case (v, v') of
     (NumValue n, NumValue n') -> pure (NumValue (n + n'))
     (StringValue s, StringValue s') -> pure (StringValue (s <> s'))
-    _ -> throwError $ TypeError (Binary Add e e')
+    _ -> liftIO $ throwIO $ TypeError (Binary Add e e')
 eval (Binary Sub e e') = do
   v <- eval e
   v' <- eval e'
   case (v, v') of
     (NumValue n, NumValue n') -> pure (NumValue (n - n'))
-    _ -> throwError $ TypeError (Binary Sub e e')
+    _ -> liftIO $ throwIO $ TypeError (Binary Sub e e')
 eval (Binary Mult e e') = do
   v <- eval e
   v' <- eval e'
   case (v, v') of
     (NumValue n, NumValue n') -> pure (NumValue (n * n'))
-    _ -> throwError $ TypeError (Binary Mult e e')
+    _ -> liftIO $ throwIO $ TypeError (Binary Mult e e')
 eval (Binary Div e e') = do
   v <- eval e
   v' <- eval e'
   case (v, v') of
     (NumValue n, NumValue n') -> pure (NumValue (n / n'))
-    _ -> throwError $ TypeError (Binary Div e e')
--- eval e = throwError $ TypeError e
+    _ -> liftIO $ throwIO $ TypeError (Binary Div e e')
+
+-- eval e = liftIO $ throwIO $ TypeError e

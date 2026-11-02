@@ -11,12 +11,15 @@ import Prelude hiding (GT, LT)
 
 instance Show Statement where
   show (ExprStatement expr) = show expr
+  show (PrintStmt expr) = "Print " <> show expr
+  show (Assignment var expr) = var <> " = " <> show expr
 
 instance Show Expr where
   show (BoolLit b) = show b
   show (StringLit s) = "\"" <> s <> "\""
   show (NumLit n) = show n
   show Nil = "nil"
+  show (Var n) = n
   show (Unary op expr) = show op <> "(" <> show expr <> ")"
   show (Binary op expr expr') = "(" <> show expr <> " " <> show op <> " " <> show expr' <> ")"
 
@@ -45,6 +48,7 @@ data Expr
   | StringLit String
   | NumLit Double
   | Nil
+  | Var String
   | Unary Op Expr
   | Binary Op Expr Expr
   deriving (Eq)
@@ -70,7 +74,12 @@ p :: Parser Script
 p = many pStatement <* eof
 
 pStatement :: Parser Statement
-pStatement = many space *> (pExprStmt <|> pPrintStmt) <* many space
+pStatement = do
+  many space
+  stmt <- (pAssignment <|> pPrintStmt <|> pExprStmt)
+  char ';'
+  many space
+  pure stmt
 
 pIdentifier :: Parser String
 pIdentifier =
@@ -96,11 +105,10 @@ pPrintStmt = do
   many1 space
   expr <- pExpr
   many space
-  char ';'
   pure (PrintStmt expr)
 
 pExprStmt :: Parser Statement
-pExprStmt = ExprStatement <$> pExpr <* char ';'
+pExprStmt = ExprStatement <$> pExpr
 
 pExpr :: Parser Expr
 pExpr = pEquality
@@ -156,6 +164,7 @@ pPrimary =
         (char '(' <* many space)
         (many space *> char ')')
         pExpr
+    , Var <$> pIdentifier
     ]
 
 pNil :: Parser Expr
