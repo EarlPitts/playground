@@ -71,15 +71,18 @@ data Op
 type Script = [Statement]
 
 p :: Parser Script
-p = many pStatement <* eof
+p = many pDeclaration <* eof
+
+pDeclaration :: Parser Statement
+pDeclaration = do
+  many space
+  decl <- pAssignment <|> pStatement
+  many space
+  char ';'
+  pure decl
 
 pStatement :: Parser Statement
-pStatement = do
-  many space
-  stmt <- (pAssignment <|> pPrintStmt <|> pExprStmt)
-  char ';'
-  many space
-  pure stmt
+pStatement = pPrintStmt <|> pExprStmt
 
 pIdentifier :: Parser String
 pIdentifier =
@@ -94,9 +97,7 @@ pAssignment = do
   many1 space
   name <- pIdentifier
   many1 space
-  char '='
-  many1 space
-  expr <- pExpr
+  expr <- option Nil $ char '=' *> many1 space *> pExpr
   pure $ Assignment name expr
 
 pPrintStmt :: Parser Statement
