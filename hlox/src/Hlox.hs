@@ -32,7 +32,7 @@ main = do
 runRepl :: IO ()
 runRepl = do
   envRef <- newIORef mempty
-  runInputT defaultSettings (loop envRef)
+  runInputT defaultSettings (loop (Env envRef))
  where
   loop env = do
     minput <- getInputLine "> "
@@ -59,8 +59,8 @@ runScript path = do
 run :: Text -> IO ()
 run script = case parse p "" script of
   Right ast -> do
-    env <- liftIO $ newIORef mempty
-    result <- liftIO $ try @RuntimeError $ runReaderT (exec ast) env
+    envRef <- liftIO $ newIORef mempty
+    result <- liftIO $ try @RuntimeError $ runReaderT (exec ast) (Env envRef)
     case result of
       Left err -> print err
       Right _ -> pure ()
@@ -85,17 +85,22 @@ data RuntimeError
   deriving (Show, Eq)
 instance Exception RuntimeError
 
-type Env = IORef (Map String Value)
+data Env = Env {unEnv :: IORef (Map String Value)}
 
--- type Interpreter a = ExceptT RuntimeError (StateT Env IO) a
+bind :: Env -> String -> Value -> IO ()
+bind env i v = modifyIORef' (unEnv env) (insert i v)
+
+get :: Env -> String -> IO (Maybe Value)
+get env i = readIORef (unEnv env) >>= pure . (!? i)
+
 type Interpreter a = ReaderT Env IO a
 
 exec :: [Statement] -> Interpreter ()
 exec [] = pure ()
 exec ((Assignment i e) : ss) = do
   v <- eval e
-  envRef <- ask
-  liftIO $ modifyIORef' envRef (insert i v)
+  env <- ask
+  liftIO $ bind env i v
   exec ss
 exec ((PrintStmt e) : ss) = eval e >>= liftIO . print >> exec ss
 exec ((ExprStatement e) : ss) = eval e >> exec ss
@@ -105,11 +110,12 @@ eval (BoolLit b) = pure (BoolValue b)
 eval (StringLit s) = pure (StringValue s)
 eval (NumLit n) = pure (NumValue n)
 eval Nil = pure NilValue
-eval (Var n) = do
-  envRef <- ask >>= liftIO . readIORef
-  case envRef !? n of
-    Just v -> pure v
-    Nothing -> liftIO $ throwIO $ Undefined n
+eval (Var i) = do
+  env <- ask
+  v <- liftIO $ get env i
+  case v of
+    Just v' -> pure v'
+    Nothing -> liftIO $ throwIO $ Undefined i
 eval (Unary Neg e) = do
   v <- eval e
   pure $ case v of
