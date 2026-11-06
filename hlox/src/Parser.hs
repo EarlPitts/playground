@@ -12,7 +12,7 @@ import Prelude hiding (GT, LT)
 instance Show Statement where
   show (ExprStatement expr) = show expr
   show (PrintStmt expr) = "Print " <> show expr
-  show (Assignment var expr) = var <> " = " <> show expr
+  show (Declaration var expr) = var <> " = " <> show expr
 
 instance Show Expr where
   show (BoolLit b) = show b
@@ -38,7 +38,7 @@ instance Show Op where
   show Minus = "-"
 
 data Statement
-  = Assignment String Expr
+  = Declaration String Expr
   | ExprStatement Expr
   | PrintStmt Expr
   deriving (Eq)
@@ -49,8 +49,10 @@ data Expr
   | NumLit Double
   | Nil
   | Var String
+  | Assignment String Expr
   | Unary Op Expr
   | Binary Op Expr Expr
+  | Grouping Expr
   deriving (Eq)
 
 data Op
@@ -76,7 +78,7 @@ p = many pDeclaration <* eof
 pDeclaration :: Parser Statement
 pDeclaration = do
   many space
-  decl <- pAssignment <|> pStatement
+  decl <- pVarDeclr <|> pStatement
   many space
   char ';'
   pure decl
@@ -91,14 +93,13 @@ pIdentifier =
     (letter <|> char '_')
     (many $ alphaNum <|> char '_')
 
-pAssignment :: Parser Statement
-pAssignment = do
+pVarDeclr :: Parser Statement
+pVarDeclr = do
   string "var"
   many1 space
   name <- pIdentifier
-  many1 space
-  expr <- option Nil $ char '=' *> many1 space *> pExpr
-  pure $ Assignment name expr
+  expr <- option Nil $ many1 space *> char '=' *> many1 space *> pExpr
+  pure $ Declaration name expr
 
 pPrintStmt :: Parser Statement
 pPrintStmt = do
@@ -112,7 +113,22 @@ pExprStmt :: Parser Statement
 pExprStmt = ExprStatement <$> pExpr
 
 pExpr :: Parser Expr
-pExpr = pEquality
+pExpr = pAssignment
+
+pAssignment :: Parser Expr
+pAssignment = try pAssExpr <|> pEquality
+
+pAssExpr :: Parser Expr
+pAssExpr = do
+  i <- pEquality
+  case i of
+    Var i' -> do
+      many1 space
+      char '='
+      many1 space
+      e <- pAssignment
+      pure (Assignment i' e)
+    e -> fail $ "Invalid assignment target: " <> show e
 
 pEquality :: Parser Expr
 pEquality = pBinary pComparison pEqualityOp
@@ -161,10 +177,11 @@ pPrimary =
     , pBoolLit
     , pStringLit
     , pNumLit
-    , between
-        (char '(' <* many space)
-        (many space *> char ')')
-        pExpr
+    , Grouping
+        <$> between
+          (char '(' <* many space)
+          (many space *> char ')')
+          pExpr
     , Var <$> pIdentifier
     ]
 

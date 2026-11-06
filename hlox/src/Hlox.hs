@@ -93,11 +93,14 @@ bind env i v = modifyIORef' (unEnv env) (insert i v)
 get :: Env -> String -> IO (Maybe Value)
 get env i = readIORef (unEnv env) >>= pure . (!? i)
 
+isDeclared :: Env -> String -> IO Bool
+isDeclared env i = readIORef (unEnv env) >>= pure . member i
+
 type Interpreter a = ReaderT Env IO a
 
 exec :: [Statement] -> Interpreter ()
 exec [] = pure ()
-exec ((Assignment i e) : ss) = do
+exec ((Declaration i e) : ss) = do
   v <- eval e
   env <- ask
   liftIO $ bind env i v
@@ -110,12 +113,22 @@ eval (BoolLit b) = pure (BoolValue b)
 eval (StringLit s) = pure (StringValue s)
 eval (NumLit n) = pure (NumValue n)
 eval Nil = pure NilValue
+eval (Grouping e) = eval e
 eval (Var i) = do
   env <- ask
   v <- liftIO $ get env i
   case v of
     Just v' -> pure v'
     Nothing -> liftIO $ throwIO $ Undefined i
+eval (Assignment i e) = do
+  env <- ask
+  d <- liftIO $ isDeclared env i
+  if d
+    then do
+      v <- eval e
+      liftIO $ bind env i v
+      pure NilValue
+    else liftIO $ throwIO $ Undefined i
 eval (Unary Neg e) = do
   v <- eval e
   pure $ case v of
