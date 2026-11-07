@@ -17,6 +17,7 @@ import System.Exit
 import Text.Parsec hiding (State, try)
 import Prelude hiding (GT, LT)
 
+import Data.Maybe (isJust)
 import Parser
 
 main :: IO ()
@@ -32,7 +33,7 @@ main = do
 runRepl :: IO ()
 runRepl = do
   envRef <- newIORef mempty
-  runInputT defaultSettings (loop (Env envRef))
+  runInputT defaultSettings (loop (Env envRef Nothing))
  where
   loop env = do
     minput <- getInputLine "> "
@@ -60,7 +61,7 @@ run :: Text -> IO ()
 run script = case parse p "" script of
   Right ast -> do
     envRef <- liftIO $ newIORef mempty
-    result <- liftIO $ try @RuntimeError $ runReaderT (exec ast) (Env envRef)
+    result <- liftIO $ try @RuntimeError $ runReaderT (exec ast) (Env envRef Nothing)
     case result of
       Left err -> print err
       Right _ -> pure ()
@@ -85,16 +86,31 @@ data RuntimeError
   deriving (Show, Eq)
 instance Exception RuntimeError
 
-data Env = Env {unEnv :: IORef (Map String Value)}
+data Env = Env
+  { values :: IORef (Map String Value)
+  , enclosing :: Maybe Env
+  }
 
 bind :: Env -> String -> Value -> IO ()
-bind env i v = modifyIORef' (unEnv env) (insert i v)
+bind env i v = modifyIORef' (values env) (insert i v)
 
 get :: Env -> String -> IO (Maybe Value)
-get env i = readIORef (unEnv env) >>= pure . (!? i)
+get env i = do
+  vs <- readIORef (values env)
+  case vs !? i of
+    Nothing -> case enclosing env of
+      Nothing -> pure Nothing
+      Just env' -> get env' i
+    Just v -> pure (Just v)
 
 isDeclared :: Env -> String -> IO Bool
-isDeclared env i = readIORef (unEnv env) >>= pure . member i
+isDeclared env i = do
+  vs <- readIORef (values env)
+  if member i vs
+    then pure True
+    else case enclosing env of
+      Nothing -> pure False
+      Just env' -> isDeclared env' i
 
 type Interpreter a = ReaderT Env IO a
 
@@ -107,6 +123,9 @@ exec ((Declaration i e) : ss) = do
   exec ss
 exec ((PrintStmt e) : ss) = eval e >>= liftIO . print >> exec ss
 exec ((ExprStatement e) : ss) = eval e >> exec ss
+exec ((Block ss) : ss') = do
+  innerEnvRef <- liftIO $ newIORef mempty
+  local (\e -> Env innerEnvRef (Just e)) (exec ss) >> exec ss'
 
 eval :: Expr -> Interpreter Value
 eval (BoolLit b) = pure (BoolValue b)
@@ -127,7 +146,7 @@ eval (Assignment i e) = do
     then do
       v <- eval e
       liftIO $ bind env i v
-      pure NilValue
+      pure v
     else liftIO $ throwIO $ Undefined i
 eval (Unary Neg e) = do
   v <- eval e

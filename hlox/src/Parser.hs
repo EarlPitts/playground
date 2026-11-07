@@ -13,12 +13,14 @@ instance Show Statement where
   show (ExprStatement expr) = show expr
   show (PrintStmt expr) = "Print " <> show expr
   show (Declaration var expr) = var <> " = " <> show expr
+  show (Block ss) = "{ " <> concat (fmap show ss) <> " }"
 
 instance Show Expr where
   show (BoolLit b) = show b
   show (StringLit s) = "\"" <> s <> "\""
   show (NumLit n) = show n
   show Nil = "nil"
+  show (Grouping e) = "(" <> show e <> ")"
   show (Var n) = n
   show (Unary op expr) = show op <> "(" <> show expr <> ")"
   show (Binary op expr expr') = "(" <> show expr <> " " <> show op <> " " <> show expr' <> ")"
@@ -41,6 +43,7 @@ data Statement
   = Declaration String Expr
   | ExprStatement Expr
   | PrintStmt Expr
+  | Block [Statement]
   deriving (Eq)
 
 data Expr
@@ -80,11 +83,13 @@ pDeclaration = do
   many space
   decl <- pVarDeclr <|> pStatement
   many space
-  char ';'
   pure decl
 
 pStatement :: Parser Statement
-pStatement = pPrintStmt <|> pExprStmt
+pStatement = pPrintStmt <|> pExprStmt <|> pBlock
+
+pBlock :: Parser Statement
+pBlock = Block <$> between (char '{') (char '}') (many pDeclaration)
 
 pIdentifier :: Parser String
 pIdentifier =
@@ -95,22 +100,24 @@ pIdentifier =
 
 pVarDeclr :: Parser Statement
 pVarDeclr = do
-  string "var"
+  try (string "var")
   many1 space
   name <- pIdentifier
   expr <- option Nil $ many1 space *> char '=' *> many1 space *> pExpr
+  char ';'
   pure $ Declaration name expr
 
 pPrintStmt :: Parser Statement
 pPrintStmt = do
-  string "print"
+  try (string "print")
   many1 space
   expr <- pExpr
   many space
+  char ';'
   pure (PrintStmt expr)
 
 pExprStmt :: Parser Statement
-pExprStmt = ExprStatement <$> pExpr
+pExprStmt = ExprStatement <$> pExpr <* char ';'
 
 pExpr :: Parser Expr
 pExpr = pAssignment
