@@ -14,6 +14,10 @@ instance Show Statement where
   show (PrintStmt expr) = "Print " <> show expr
   show (Declaration var expr) = var <> " = " <> show expr
   show (Block ss) = "{ " <> concat (fmap show ss) <> " }"
+  show (If cond t f) =
+    "if (" <> show cond <> ") " <> show t <> case f of
+      Nothing -> ""
+      Just f' -> " else " <> show f'
 
 instance Show Expr where
   show (BoolLit b) = show b
@@ -24,6 +28,9 @@ instance Show Expr where
   show (Var n) = n
   show (Unary op expr) = show op <> "(" <> show expr <> ")"
   show (Binary op expr expr') = "(" <> show expr <> " " <> show op <> " " <> show expr' <> ")"
+  show (Logical op e e') = case op of
+    And -> show e <> " and " <> show e'
+    Or -> show e <> " or " <> show e'
 
 instance Show Op where
   show Eq = "=="
@@ -38,12 +45,15 @@ instance Show Op where
   show Div = "/"
   show Neg = "!"
   show Minus = "-"
+  show And = "and"
+  show Or = "or"
 
 data Statement
   = Declaration String Expr
   | ExprStatement Expr
   | PrintStmt Expr
   | Block [Statement]
+  | If Expr Statement (Maybe Statement)
   deriving (Eq)
 
 data Expr
@@ -55,6 +65,7 @@ data Expr
   | Assignment String Expr
   | Unary Op Expr
   | Binary Op Expr Expr
+  | Logical Op Expr Expr
   | Grouping Expr
   deriving (Eq)
 
@@ -71,6 +82,8 @@ data Op
   | Div
   | Neg
   | Minus
+  | And
+  | Or
   deriving (Eq)
 
 type Script = [Statement]
@@ -86,7 +99,17 @@ pDeclaration = do
   pure decl
 
 pStatement :: Parser Statement
-pStatement = pPrintStmt <|> pExprStmt <|> pBlock
+pStatement = pPrintStmt <|> pIfStmt <|> pExprStmt <|> pBlock
+
+pIfStmt :: Parser Statement
+pIfStmt = do
+  try (string "if")
+  many1 space
+  cond <- between (char '(') (char ')') pExpr
+  many1 space
+  t <- pStatement
+  f <- option Nothing (Just <$> (try (many1 space *> string "else" *> many1 space *> pStatement)))
+  pure $ If cond t f
 
 pBlock :: Parser Statement
 pBlock = Block <$> between (char '{') (char '}') (many pDeclaration)
@@ -123,11 +146,23 @@ pExpr :: Parser Expr
 pExpr = pAssignment
 
 pAssignment :: Parser Expr
-pAssignment = try pAssExpr <|> pEquality
+pAssignment = try pAssExpr <|> pOr
+
+pOr :: Parser Expr
+pOr = do
+  l <- pAnd
+  r <- many (try (many1 space *> string "or" *> many1 space *> pAnd))
+  pure $ foldl' (Logical Or) l r
+
+pAnd :: Parser Expr
+pAnd = do
+  l <- pEquality
+  r <- many (try (many1 space *> string "and" *> many1 space *> pEquality))
+  pure $ foldl' (Logical And) l r
 
 pAssExpr :: Parser Expr
 pAssExpr = do
-  i <- pEquality
+  i <- pOr
   case i of
     Var i' -> do
       many1 space
@@ -198,8 +233,8 @@ pNil = string "nil" *> pure Nil
 pBoolLit :: Parser Expr
 pBoolLit =
   BoolLit
-    <$> ( ((string "true") *> pure True)
-            <|> ((string "false") *> pure False)
+    <$> ( ((try (string "true")) *> pure True)
+            <|> ((try (string "false")) *> pure False)
         )
 
 pStringLit :: Parser Expr

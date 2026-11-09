@@ -17,7 +17,6 @@ import System.Exit
 import Text.Parsec hiding (State, try)
 import Prelude hiding (GT, LT)
 
-import Data.Maybe (isJust)
 import Parser
 
 main :: IO ()
@@ -30,6 +29,7 @@ main = do
       putStrLn "Usage: hlox [script]"
       exitWith (ExitFailure 64)
 
+-- TODO show the result of an expression instead of unit in the repl
 runRepl :: IO ()
 runRepl = do
   envRef <- newIORef mempty
@@ -112,6 +112,12 @@ isDeclared env i = do
       Nothing -> pure False
       Just env' -> isDeclared env' i
 
+isTruthy :: Value -> Bool
+isTruthy (BoolValue False) = False
+isTruthy NilValue = False
+isTruthy (NumValue 0) = False
+isTruthy _ = True
+
 type Interpreter a = ReaderT Env IO a
 
 exec :: [Statement] -> Interpreter ()
@@ -126,6 +132,11 @@ exec ((ExprStatement e) : ss) = eval e >> exec ss
 exec ((Block ss) : ss') = do
   innerEnvRef <- liftIO $ newIORef mempty
   local (\e -> Env innerEnvRef (Just e)) (exec ss) >> exec ss'
+exec ((If cond t f) : ss) = do
+  c <- eval cond
+  case f of
+    Just f' -> if isTruthy c then exec [t] >> exec ss else exec [f'] >> exec ss
+    Nothing -> if isTruthy c then exec [t] >> exec ss else exec ss
 
 eval :: Expr -> Interpreter Value
 eval (BoolLit b) = pure (BoolValue b)
@@ -217,5 +228,15 @@ eval (Binary Div e e') = do
   case (v, v') of
     (NumValue n, NumValue n') -> pure (NumValue (n / n'))
     _ -> liftIO $ throwIO $ TypeError (Binary Div e e')
+eval (Logical Or e e') = do
+  v <- eval e
+  if isTruthy v
+    then pure v
+    else eval e'
+eval (Logical And e e') = do
+  v <- eval e
+  if not $ isTruthy v
+    then pure v
+    else eval e'
 
 -- eval e = liftIO $ throwIO $ TypeError e
