@@ -133,6 +133,7 @@ type Interpreter a = ReaderT Env IO a
 exec :: [Statement] -> Interpreter (Maybe Value)
 exec [] = pure Nothing
 exec [(ExprStatement e)] = eval e >>= pure . Just
+exec (Noop : ss) = exec ss
 exec ((Declaration i e) : ss) = do
   v <- eval e
   env <- ask

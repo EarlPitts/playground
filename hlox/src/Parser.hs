@@ -55,6 +55,7 @@ data Statement
   | While Expr Statement
   | Block [Statement]
   | If Expr Statement (Maybe Statement)
+  | Noop
   deriving (Eq)
 
 data Expr
@@ -100,7 +101,7 @@ pDeclaration = do
   pure decl
 
 pStatement :: Parser Statement
-pStatement = pPrintStmt <|> pIfStmt <|> pWhileStmt <|> pExprStmt <|> pBlock
+pStatement = choice $ try <$> [pPrintStmt, pIfStmt, pWhileStmt, pForStmt, pExprStmt, pBlock]
 
 pWhileStmt :: Parser Statement
 pWhileStmt = do
@@ -111,9 +112,29 @@ pWhileStmt = do
   s <- pStatement
   pure $ While e s
 
+pForStmt :: Parser Statement
+pForStmt = do
+  string "for"
+  many1 space
+  string "("
+  many space
+  init <- try pVarDeclr <|> string ";" *> pure Noop
+  many space
+  cond <- option (BoolLit True) (try pExpr)
+  many space
+  string ";"
+  many space
+  incr <- option Noop (ExprStatement <$> try pExpr)
+  many space
+  string ")"
+  many1 space
+  stmt <- pStatement
+  many space
+  pure $ Block [init, While cond (Block [stmt, incr])]
+
 pIfStmt :: Parser Statement
 pIfStmt = do
-  try (string "if")
+  string "if"
   many1 space
   cond <- between (char '(') (char ')') pExpr
   many1 space
@@ -133,16 +154,16 @@ pIdentifier =
 
 pVarDeclr :: Parser Statement
 pVarDeclr = do
-  try (string "var")
+  string "var"
   many1 space
   name <- pIdentifier
-  expr <- option Nil $ many1 space *> char '=' *> many1 space *> pExpr
+  expr <- option Nil $ many space *> char '=' *> many space *> pExpr
   char ';'
   pure $ Declaration name expr
 
 pPrintStmt :: Parser Statement
 pPrintStmt = do
-  try (string "print")
+  string "print"
   many1 space
   expr <- pExpr
   many space
@@ -156,7 +177,7 @@ pExpr :: Parser Expr
 pExpr = pAssignment
 
 pAssignment :: Parser Expr
-pAssignment = try pAssExpr <|> pOr
+pAssignment = choice $ try <$> [pAssExpr, pOr]
 
 pOr :: Parser Expr
 pOr = do
@@ -175,9 +196,9 @@ pAssExpr = do
   i <- pOr
   case i of
     Var i' -> do
-      many1 space
+      many space
       char '='
-      many1 space
+      many space
       e <- pAssignment
       pure (Assignment i' e)
     e -> fail $ "Invalid assignment target: " <> show e
@@ -197,12 +218,13 @@ pComparison = pBinary pTerm pComparisonOp
 
 pComparisonOp :: Parser Op
 pComparisonOp =
-  choice
-    [ try (string "<=") *> pure LTE
-    , string "<" *> pure LT
-    , try (string ">=") *> pure GTE
-    , string ">" *> pure GT
-    ]
+  choice $
+    try
+      <$> [ string "<=" *> pure LTE
+          , string "<" *> pure LT
+          , string ">=" *> pure GTE
+          , string ">" *> pure GT
+          ]
 
 pTerm :: Parser Expr
 pTerm = pBinary pFactor pTermOp
