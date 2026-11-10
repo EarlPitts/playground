@@ -52,6 +52,7 @@ data Statement
   = Declaration String Expr
   | ExprStatement Expr
   | PrintStmt Expr
+  | While Expr Statement
   | Block [Statement]
   | If Expr Statement (Maybe Statement)
   deriving (Eq)
@@ -99,7 +100,16 @@ pDeclaration = do
   pure decl
 
 pStatement :: Parser Statement
-pStatement = pPrintStmt <|> pIfStmt <|> pExprStmt <|> pBlock
+pStatement = pPrintStmt <|> pIfStmt <|> pWhileStmt <|> pExprStmt <|> pBlock
+
+pWhileStmt :: Parser Statement
+pWhileStmt = do
+  string "while"
+  many1 space
+  e <- between (char '(') (char ')') pExpr
+  many1 space
+  s <- pStatement
+  pure $ While e s
 
 pIfStmt :: Parser Statement
 pIfStmt = do

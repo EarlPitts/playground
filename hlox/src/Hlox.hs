@@ -46,7 +46,8 @@ runRepl = do
             result <- liftIO $ try @RuntimeError $ runReaderT (exec ast) env
             case result of
               Left err -> liftIO $ print err
-              Right v -> liftIO $ print v
+              Right Nothing -> pure ()
+              Right (Just v) -> liftIO $ print v
           Left err -> liftIO $ print err
         loop env
 
@@ -94,6 +95,15 @@ data Env = Env
 bind :: Env -> String -> Value -> IO ()
 bind env i v = modifyIORef' (values env) (insert i v)
 
+assign :: Env -> String -> Value -> IO ()
+assign env i v = do
+  vs <- readIORef (values env)
+  case vs !? i of
+    Nothing -> case enclosing env of
+      Nothing -> liftIO $ throwIO $ Undefined i
+      Just env' -> assign env' i v
+    Just _ -> modifyIORef' (values env) (insert i v)
+
 get :: Env -> String -> IO (Maybe Value)
 get env i = do
   vs <- readIORef (values env)
@@ -120,8 +130,9 @@ isTruthy _ = True
 
 type Interpreter a = ReaderT Env IO a
 
-exec :: [Statement] -> Interpreter ()
-exec [] = pure ()
+exec :: [Statement] -> Interpreter (Maybe Value)
+exec [] = pure Nothing
+exec [(ExprStatement e)] = eval e >>= pure . Just
 exec ((Declaration i e) : ss) = do
   v <- eval e
   env <- ask
@@ -137,6 +148,11 @@ exec ((If cond t f) : ss) = do
   case f of
     Just f' -> if isTruthy c then exec [t] >> exec ss else exec [f'] >> exec ss
     Nothing -> if isTruthy c then exec [t] >> exec ss else exec ss
+exec ((While e s) : ss) = do
+  v <- eval e
+  if isTruthy v
+    then exec [s] >> exec ((While e s) : ss)
+    else exec ss
 
 eval :: Expr -> Interpreter Value
 eval (BoolLit b) = pure (BoolValue b)
@@ -156,7 +172,7 @@ eval (Assignment i e) = do
   if d
     then do
       v <- eval e
-      liftIO $ bind env i v
+      liftIO $ assign env i v
       pure v
     else liftIO $ throwIO $ Undefined i
 eval (Unary Neg e) = do
