@@ -5,48 +5,51 @@ module Parser (
   Statement (..),
 ) where
 
+import Data.List (intercalate)
 import Text.Parsec
 import Text.Parsec.Text
 import Prelude hiding (GT, LT)
 
-instance Show Statement where
-  show (ExprStatement expr) = show expr
-  show (PrintStmt expr) = "Print " <> show expr
-  show (Declaration var expr) = var <> " = " <> show expr
-  show (Block ss) = "{ " <> concat (fmap show ss) <> " }"
-  show (If cond t f) =
-    "if (" <> show cond <> ") " <> show t <> case f of
-      Nothing -> ""
-      Just f' -> " else " <> show f'
+-- instance Show Statement where
+--   show (ExprStatement expr) = show expr
+--   show (PrintStmt expr) = "Print " <> show expr
+--   show (Declaration var expr) = var <> " = " <> show expr
+--   show (Block ss) = "{ " <> concat (fmap show ss) <> " }"
+--   show (If cond t f) =
+--     "if (" <> show cond <> ") " <> show t <> case f of
+--       Nothing -> ""
+--       Just f' -> " else " <> show f'
+--
+-- instance Show Expr where
+--   show (BoolLit b) = show b
+--   show (StringLit s) = "\"" <> s <> "\""
+--   show (NumLit n) = show n
+--   show Nil = "nil"
+--   show (Grouping e) = "(" <> show e <> ")"
+--   show (Var n) = n
+--   show (Unary op expr) = show op <> "(" <> show expr <> ")"
+--   show (Binary op expr expr') = "(" <> show expr <> " " <> show op <> " " <> show expr' <> ")"
+--   show (Logical op e e') = case op of
+--     And -> show e <> " and " <> show e'
+--     Or -> show e <> " or " <> show e'
+--   show (Call e []) = show e
+--   show (Call e es) = show e <> "(" <> intercalate "," (fmap show es) <> ")"
 
-instance Show Expr where
-  show (BoolLit b) = show b
-  show (StringLit s) = "\"" <> s <> "\""
-  show (NumLit n) = show n
-  show Nil = "nil"
-  show (Grouping e) = "(" <> show e <> ")"
-  show (Var n) = n
-  show (Unary op expr) = show op <> "(" <> show expr <> ")"
-  show (Binary op expr expr') = "(" <> show expr <> " " <> show op <> " " <> show expr' <> ")"
-  show (Logical op e e') = case op of
-    And -> show e <> " and " <> show e'
-    Or -> show e <> " or " <> show e'
-
-instance Show Op where
-  show Eq = "=="
-  show Neq = "!="
-  show LT = "<"
-  show LTE = "<="
-  show GT = ">"
-  show GTE = ">="
-  show Add = "+"
-  show Sub = "-"
-  show Mult = "*"
-  show Div = "/"
-  show Neg = "!"
-  show Minus = "-"
-  show And = "and"
-  show Or = "or"
+-- instance Show Op where
+--   show Eq = "=="
+--   show Neq = "!="
+--   show LT = "<"
+--   show LTE = "<="
+--   show GT = ">"
+--   show GTE = ">="
+--   show Add = "+"
+--   show Sub = "-"
+--   show Mult = "*"
+--   show Div = "/"
+--   show Neg = "!"
+--   show Minus = "-"
+--   show And = "and"
+--   show Or = "or"
 
 data Statement
   = Declaration String Expr
@@ -56,7 +59,7 @@ data Statement
   | Block [Statement]
   | If Expr Statement (Maybe Statement)
   | Noop
-  deriving (Eq)
+  deriving (Eq, Show)
 
 data Expr
   = BoolLit Bool
@@ -69,7 +72,8 @@ data Expr
   | Binary Op Expr Expr
   | Logical Op Expr Expr
   | Grouping Expr
-  deriving (Eq)
+  | Call Expr [Expr]
+  deriving (Eq, Show)
 
 data Op
   = Eq
@@ -86,7 +90,7 @@ data Op
   | Minus
   | And
   | Or
-  deriving (Eq)
+  deriving (Eq, Show)
 
 type Script = [Statement]
 
@@ -139,7 +143,7 @@ pIfStmt = do
   cond <- between (char '(') (char ')') pExpr
   many1 space
   t <- pStatement
-  f <- option Nothing (Just <$> (try (many1 space *> string "else" *> many1 space *> pStatement)))
+  f <- optionMaybe (try (many1 space *> string "else" *> many1 space *> pStatement))
   pure $ If cond t f
 
 pBlock :: Parser Statement
@@ -239,7 +243,16 @@ pFactorOp :: Parser Op
 pFactorOp = char '*' *> pure Mult <|> char '/' *> pure Div
 
 pUnary :: Parser Expr
-pUnary = Unary <$> pUnaryOp <*> pUnary <|> pPrimary
+pUnary = Unary <$> pUnaryOp <*> pUnary <|> pCall
+
+pCall :: Parser Expr
+pCall = do
+  callee <- pPrimary
+  argsLists <- many pArgs
+  foldl' (\call args -> (flip Call) args <$> call) (pure callee) argsLists
+
+pArgs :: Parser [Expr]
+pArgs = between (char '(') (char ')') (pExpr `sepBy` (char ','))
 
 pUnaryOp :: Parser Op
 pUnaryOp = char '!' *> pure Neg <|> char '-' *> pure Minus
