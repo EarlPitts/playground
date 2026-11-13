@@ -5,6 +5,7 @@ module Parser (
   Statement (..),
 ) where
 
+import Control.Monad (when)
 import Data.List (intercalate)
 import Text.Parsec
 import Text.Parsec.Text
@@ -249,6 +250,9 @@ pCall :: Parser Expr
 pCall = do
   callee <- pPrimary
   argsLists <- many pArgs
+  when
+    (any ((>= 255) . length) argsLists)
+    (fail $ "Too many arguments in function call " <> show callee)
   foldl' (\call args -> (flip Call) args <$> call) (pure callee) argsLists
 
 pArgs :: Parser [Expr]
