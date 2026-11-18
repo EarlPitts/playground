@@ -7,88 +7,93 @@ build-type:      Simple
 extra-doc-files: CHANGELOG.md
 
 common warnings
-    ghc-options: -Wall -Wno-name-shadowing
+  ghc-options: -Wall -Wno-name-shadowing
 
 library
-    import:           warnings
-    exposed-modules: 
-        Core
-      , Docker
-      , Socket
-      , Runner
-      , JobHandler
-      , Agent
-      , Server
-      , JobHandler.Memory
-      , GitHub
-      , Cli
-    build-depends:   
-        base
-      , aeson
-      , async
-      , base
-      , butcher
-      , hslogger
-      , http-client
-      , http-conduit
-      , http-types
-      , network
-      , record-hasfield
-      , rio
-      , scotty
-      , serialise
-      , stm
-      , time
-      , typed-process
-      , wai-cors
-      , yaml
-    hs-source-dirs:   src
-    default-language: Haskell2010
-    default-extensions:
-        DeriveFunctor
-      , OverloadedRecordDot
-      , BlockArguments
-      , DeriveAnyClass
-      , DeriveGeneric
-      , LambdaCase
-      , NoImplicitPrelude
-      , OverloadedStrings
-      , StrictData
+  import:             warnings
+  exposed-modules:
+    Agent
+    Cli
+    Core
+    Docker
+    GitHub
+    JobHandler
+    JobHandler.Memory
+    Runner
+    Server
+    Socket
+
+  build-depends:
+    , aeson
+    , async
+    , base
+    , butcher
+    , hslogger
+    , http-client
+    , http-conduit
+    , http-types
+    , network
+    , record-hasfield
+    , rio
+    , scotty
+    , serialise
+    , stm
+    , time
+    , typed-process
+    , wai-cors
+    , yaml
+
+  hs-source-dirs:     src
+  default-language:   Haskell2010
+  default-extensions:
+    BlockArguments
+    DeriveAnyClass
+    DeriveFunctor
+    DeriveGeneric
+    LambdaCase
+    NoImplicitPrelude
+    OverloadedRecordDot
+    OverloadedStrings
+    StrictData
 
 executable ci-server
-    import:           warnings
-    main-is:          Main.hs
-    build-depends:
-        base
-      , ci-server
-      , hslogger
-      , rio
-    hs-source-dirs:   app
-    default-language: Haskell2010
+  import:           warnings
+  main-is:          Main.hs
+  ghc-options:      -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+    , base
+    , ci-server
+    , hslogger
+    , rio
+
+  hs-source-dirs:   app
+  default-language: Haskell2010
 
 test-suite ci-server-test
-    import:           warnings
-    default-language: Haskell2010
-    type:             exitcode-stdio-1.0
-    hs-source-dirs:   test
-    main-is:          Main.hs
-    build-depends:
-        base
-      , ci-server
-      , rio
-      , hspec
-      , typed-process
-      , yaml
-      , async
-      , http-conduit
-      , aeson
-    default-extensions:
-        DeriveFunctor
-      , OverloadedRecordDot
-      , BlockArguments
-      , DeriveAnyClass
-      , DeriveGeneric
-      , LambdaCase
-      , NoImplicitPrelude
-      , OverloadedStrings
-      , StrictData
+  import:             warnings
+  default-language:   Haskell2010
+  type:               exitcode-stdio-1.0
+  hs-source-dirs:     test
+  main-is:            Main.hs
+  ghc-options:        -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+    , aeson
+    , async
+    , base
+    , ci-server
+    , hspec
+    , http-conduit
+    , rio
+    , typed-process
+    , yaml
+
+  default-extensions:
+    BlockArguments
+    DeriveAnyClass
+    DeriveFunctor
+    DeriveGeneric
+    LambdaCase
+    NoImplicitPrelude
+    OverloadedRecordDot
+    OverloadedStrings
+    StrictData
